@@ -1,0 +1,19 @@
+[package]
+name = "oxicrypto-adapter-pkcs11"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "OxiCrypto adapter for PKCS#11 HSMs via cryptoki"
+keywords = ["cryptography", "pkcs11", "hsm", "fips", "hardware"]
+categories = ["cryptography"]
+
+[features]
+default = []
+pkcs11 = ["dep:cryptoki"]
+
+[dependencies]
+oxicrypto-core = { workspace = true }
+cryptoki       = { workspace = true, optional = true }

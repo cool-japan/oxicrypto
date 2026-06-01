@@ -1,0 +1,36 @@
+[package]
+name = "oxicrypto-sig"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure Rust digital signature implementations for OxiCrypto (Ed25519, ECDSA P-256/384/521, Ed448, RSA PKCS#1v15 / PSS)"
+keywords = ["cryptography", "ed25519", "ecdsa", "rsa", "pure-rust"]
+categories = ["cryptography"]
+
+[features]
+default = []
+std = ["ed25519-dalek/std", "oxicrypto-core/std"]
+
+[dependencies]
+oxicrypto-core.workspace = true
+ed25519-dalek.workspace = true
+curve25519-dalek.workspace = true
+zeroize.workspace = true
+rsa.workspace = true
+p256.workspace = true
+p384.workspace = true
+p521.workspace = true
+k256.workspace = true
+ed448-goldilocks.workspace = true
+sha2 = { workspace = true, features = ["alloc", "oid"] }
+sha3.workspace = true
+digest = { workspace = true, features = ["alloc", "oid"] }
+rand_core.workspace = true
+rand_chacha.workspace = true
+getrandom.workspace = true
+
+[dev-dependencies]
+oxicrypto-rand.workspace = true

@@ -1,0 +1,6 @@
+FROM rust:slim
+WORKDIR /app
+COPY . .
+RUN cargo build --workspace 2>&1 && \
+    cargo tree --target x86_64-unknown-linux-gnu | grep -E '(-sys v|ring v|aws-lc|openssl)' && \
+    echo "FFI LEAK DETECTED" && exit 1 || echo "FFI AUDIT CLEAN"

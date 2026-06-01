@@ -1,0 +1,20 @@
+[package]
+name = "oxicrypto-cipher"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure Rust raw block/stream cipher primitives for OxiCrypto (AES single-block ECB, ChaCha20 keystream) used by QUIC header protection"
+keywords = ["cryptography", "aes", "chacha20", "quic", "cipher"]
+categories = ["cryptography"]
+
+[features]
+default = []
+std = ["oxicrypto-core/std"]
+
+[dependencies]
+oxicrypto-core.workspace = true
+aes.workspace = true
+chacha20 = { workspace = true, features = ["cipher"] }

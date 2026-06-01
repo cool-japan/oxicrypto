@@ -1,0 +1,28 @@
+[package]
+name = "oxicrypto-kdf"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure Rust KDF implementations for OxiCrypto (HKDF, PBKDF2, Argon2id, scrypt)"
+keywords = ["cryptography", "hkdf", "pbkdf2", "argon2", "scrypt"]
+categories = ["cryptography"]
+
+[features]
+default = []
+std = ["sha2/alloc", "oxicrypto-core/std"]
+
+[dependencies]
+oxicrypto-core.workspace = true
+oxicrypto-rand.workspace = true
+hkdf.workspace = true
+sha2 = { workspace = true, features = ["alloc"] }
+digest = { workspace = true, features = ["alloc"] }
+hmac.workspace = true
+pbkdf2.workspace = true
+argon2.workspace = true
+scrypt.workspace = true
+subtle.workspace = true
+password-hash.workspace = true

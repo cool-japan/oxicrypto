@@ -1,0 +1,25 @@
+[package]
+name = "oxicrypto-hash"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure Rust hash implementations for OxiCrypto (SHA-2, SHA-3, BLAKE3)"
+keywords = ["cryptography", "hash", "sha2", "sha3", "blake3"]
+categories = ["cryptography"]
+
+[features]
+default = []
+std = ["blake3/std", "oxicrypto-core/std"]
+
+[dependencies]
+oxicrypto-core.workspace = true
+sha2 = { workspace = true, features = ["alloc"] }
+sha3 = { workspace = true, features = ["alloc"] }
+blake2 = { workspace = true, features = ["alloc"] }
+blake3.workspace = true
+digest = { workspace = true, features = ["alloc"] }
+shake.workspace = true
+cshake.workspace = true

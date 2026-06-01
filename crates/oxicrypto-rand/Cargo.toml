@@ -1,0 +1,21 @@
+[package]
+name = "oxicrypto-rand"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure Rust CSPRNG for OxiCrypto (ChaCha20 seeded from getrandom)"
+keywords = ["cryptography", "rng", "csprng", "chacha20", "pure-rust"]
+categories = ["cryptography"]
+
+[features]
+default = []
+std = ["rand_chacha/std", "oxicrypto-core/std"]
+
+[dependencies]
+oxicrypto-core.workspace = true
+rand_chacha.workspace = true
+rand_core.workspace = true
+getrandom.workspace = true

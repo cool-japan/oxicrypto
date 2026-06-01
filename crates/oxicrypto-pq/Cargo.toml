@@ -1,0 +1,33 @@
+[package]
+name = "oxicrypto-pq"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Post-quantum cryptography for OxiCrypto: ML-KEM (FIPS 203) + ML-DSA (FIPS 204)"
+keywords = ["cryptography", "post-quantum", "ml-kem", "ml-dsa", "kyber"]
+categories = ["cryptography"]
+
+[dependencies]
+oxicrypto-core = { workspace = true }
+oxicrypto-kex = { workspace = true }
+oxicrypto-kdf = { workspace = true }
+ml-kem = { workspace = true }
+ml-dsa = { workspace = true }
+slh-dsa = { workspace = true }
+rand_core = { workspace = true }
+rand_chacha = { workspace = true }
+sha3 = { workspace = true }
+subtle = { workspace = true }
+zeroize = { workspace = true }
+getrandom = { workspace = true }
+
+[dev-dependencies]
+shake = { workspace = true }
+x25519-dalek = { workspace = true }
+
+[features]
+default = []
+hazmat-test-vectors = []

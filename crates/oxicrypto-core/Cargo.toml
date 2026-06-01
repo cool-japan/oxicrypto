@@ -1,0 +1,19 @@
+[package]
+name = "oxicrypto-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure Rust cryptography trait surface (no_std + alloc)"
+keywords = ["cryptography", "no-std", "traits", "pure-rust", "oxicrypto"]
+categories = ["cryptography", "no-std"]
+
+[features]
+default = []
+std = []
+
+[dependencies]
+subtle.workspace = true
+zeroize.workspace = true

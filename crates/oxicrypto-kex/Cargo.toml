@@ -1,0 +1,30 @@
+[package]
+name = "oxicrypto-kex"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure Rust key exchange implementations for OxiCrypto (X25519)"
+keywords = ["cryptography", "x25519", "ecdh", "key-exchange", "pure-rust"]
+categories = ["cryptography"]
+
+[features]
+default = []
+std = ["oxicrypto-core/std", "oxicrypto-kdf/std", "oxicrypto-aead/std"]
+
+[dependencies]
+oxicrypto-core.workspace = true
+oxicrypto-kdf.workspace = true
+oxicrypto-aead.workspace = true
+x25519-dalek.workspace = true
+p256 = { workspace = true, features = ["ecdh"] }
+p384 = { workspace = true, features = ["ecdh"] }
+p521 = { workspace = true, features = ["ecdh"] }
+rand_core.workspace = true
+x448.workspace = true
+
+[dev-dependencies]
+rand_chacha.workspace = true
+hex.workspace = true

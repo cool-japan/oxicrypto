@@ -1,0 +1,26 @@
+[package]
+name = "oxicrypto-aead"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure Rust AEAD implementations for OxiCrypto (AES-GCM, ChaCha20-Poly1305, AES-GCM-SIV, XChaCha20-Poly1305)"
+keywords = ["cryptography", "aead", "aes-gcm", "chacha20", "xchacha20"]
+categories = ["cryptography"]
+
+[features]
+default = []
+std = ["oxicrypto-core/std"]
+
+[dependencies]
+oxicrypto-core.workspace = true
+aes-gcm.workspace = true
+chacha20poly1305.workspace = true
+aead.workspace = true
+aes-gcm-siv.workspace = true
+aes = { workspace = true, features = ["hazmat"] }
+ocb3.workspace = true
+subtle.workspace = true
+aes-kw.workspace = true

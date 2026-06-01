@@ -1,0 +1,74 @@
+[package]
+name = "oxicrypto-bench"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Criterion benchmarks comparing OxiCrypto against ring and aws-lc-rs (dev-only)"
+keywords = ["cryptography", "benchmark", "aes-gcm", "chacha20", "ed25519"]
+categories = ["cryptography", "development-tools"]
+
+# The library target is not a benchmark harness; it only exists to satisfy
+# Cargo's requirement for a lib target when `[lib] bench = false` is set.
+[lib]
+bench = false
+
+# ── Benchmark binaries ────────────────────────────────────────────────────────
+
+[[bench]]
+name = "hash"
+harness = false
+
+[[bench]]
+name = "mac"
+harness = false
+
+[[bench]]
+name = "aead"
+harness = false
+
+[[bench]]
+name = "kdf"
+harness = false
+
+[[bench]]
+name = "sig"
+harness = false
+
+[[bench]]
+name = "kex"
+harness = false
+
+[[bench]]
+name = "pq"
+harness = false
+required-features = ["pq-preview"]
+
+# ── Features ──────────────────────────────────────────────────────────────────
+
+[features]
+# Propagate pq-preview to oxicrypto and pull in the PQ crate.
+pq-preview = ["oxicrypto/pq-preview", "dep:oxicrypto-pq"]
+
+# ── Dependencies ──────────────────────────────────────────────────────────────
+
+[dependencies]
+oxicrypto      = { workspace = true, features = ["pure", "simd"] }
+oxicrypto-kex  = { workspace = true }
+oxicrypto-sig  = { workspace = true }
+oxicrypto-mac  = { workspace = true }
+oxicrypto-kdf  = { workspace = true }
+oxicrypto-rand = { workspace = true }
+oxicrypto-pq   = { workspace = true, optional = true }
+criterion      = { workspace = true }
+rand_chacha    = { workspace = true }
+rand_core      = { workspace = true }
+getrandom      = { workspace = true }
+
+# ring and aws-lc-rs are ONLY dev-dependencies of this bench crate.
+# They must NOT appear on normal dependency edges of any other crate.
+[dev-dependencies]
+ring        = { workspace = true }
+aws-lc-rs   = { workspace = true }

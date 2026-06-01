@@ -1,0 +1,77 @@
+[package]
+name = "oxicrypto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure Rust cryptography facade for the OxiCrypto stack (hashes, AEADs, MACs, signatures, KEX, KDFs, CSPRNG)"
+keywords = ["cryptography", "pure-rust", "aead", "ed25519", "hkdf"]
+categories = ["cryptography"]
+
+[features]
+default = ["pure"]
+pure = [
+    "dep:oxicrypto-hash",
+    "dep:oxicrypto-aead",
+    "dep:oxicrypto-cipher",
+    "dep:oxicrypto-mac",
+    "dep:oxicrypto-sig",
+    "dep:oxicrypto-kex",
+    "dep:oxicrypto-kdf",
+    "dep:oxicrypto-rand",
+]
+pq-preview = ["dep:oxicrypto-pq", "dep:rand_chacha", "dep:rand_core", "dep:getrandom"]
+std = [
+    "oxicrypto-core/std",
+    "oxicrypto-hash?/std",
+    "oxicrypto-aead?/std",
+    "oxicrypto-cipher?/std",
+    "oxicrypto-mac?/std",
+    "oxicrypto-sig?/std",
+    "oxicrypto-kex?/std",
+    "oxicrypto-kdf?/std",
+    "oxicrypto-rand?/std",
+]
+# Enables explicit runtime CPU-feature detection (AES-NI, SHA-NI, AVX2/NEON).
+# The underlying RustCrypto crates already use cpufeatures internally; this flag
+# makes the dispatch visible via `oxicrypto::simd::cpu_info()`.
+simd = ["dep:cpufeatures"]
+# Enable the aws-lc-rs backed AEAD/sig/hash adapter.
+aws-lc = ["dep:oxicrypto-adapter-aws-lc", "oxicrypto-adapter-aws-lc/aws-lc"]
+# Enable the PKCS#11 HSM adapter via cryptoki.
+pkcs11 = ["dep:oxicrypto-adapter-pkcs11", "oxicrypto-adapter-pkcs11/pkcs11"]
+
+[dependencies]
+oxicrypto-core.workspace = true
+oxicrypto-hash  = { workspace = true, optional = true }
+oxicrypto-aead  = { workspace = true, optional = true }
+oxicrypto-cipher = { workspace = true, optional = true }
+oxicrypto-mac   = { workspace = true, optional = true }
+oxicrypto-sig   = { workspace = true, optional = true }
+oxicrypto-kex   = { workspace = true, optional = true }
+oxicrypto-kdf   = { workspace = true, optional = true }
+oxicrypto-rand  = { workspace = true, optional = true }
+oxicrypto-pq    = { workspace = true, optional = true }
+rand_chacha     = { workspace = true, optional = true }
+rand_core       = { workspace = true, optional = true }
+getrandom       = { workspace = true, optional = true }
+cpufeatures                = { workspace = true, optional = true }
+oxicrypto-adapter-aws-lc   = { workspace = true, optional = true }
+oxicrypto-adapter-pkcs11   = { workspace = true, optional = true }
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+x25519-dalek.workspace = true
+rand_chacha.workspace = true
+rand_core.workspace = true
+getrandom.workspace = true
+oxicrypto-sig.workspace = true
+p256.workspace = true
+p384.workspace = true
+p521.workspace = true
+
+[[example]]
+name = "pq_kem"
+required-features = ["pq-preview"]

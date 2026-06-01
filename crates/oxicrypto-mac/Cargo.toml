@@ -1,0 +1,28 @@
+[package]
+name = "oxicrypto-mac"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure Rust MAC implementations for OxiCrypto (HMAC-SHA-256, HMAC-SHA-512)"
+keywords = ["cryptography", "hmac", "mac", "authentication", "pure-rust"]
+categories = ["cryptography"]
+
+[features]
+default = []
+std = ["oxicrypto-core/std"]
+
+[dependencies]
+oxicrypto-core.workspace = true
+hmac.workspace = true
+sha2 = { workspace = true, features = ["alloc"] }
+sha3 = { workspace = true, features = ["alloc"] }
+subtle.workspace = true
+digest = { workspace = true, features = ["alloc", "mac"] }
+poly1305.workspace = true
+cmac.workspace = true
+aes-cipher05 = { workspace = true }
+tiny-keccak.workspace = true
+blake3.workspace = true
