@@ -22,11 +22,77 @@ use oxicrypto_core::{CryptoError, Vec};
 use rand_core::UnwrapErr;
 use rsa::oaep;
 use rsa::pkcs1v15;
-use rsa::pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey};
+use rsa::pkcs8::{
+    DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding,
+};
 use rsa::pss;
 use rsa::signature::{RandomizedSigner, SignatureEncoding, Verifier as RsaVerifierTrait};
 use rsa::traits::{Decryptor, RandomizedEncryptor};
 use sha2::{Sha256, Sha384, Sha512};
+
+/// Shared helper: import `RsaPrivateKey` from PKCS#1 DER bytes.
+fn rsa_private_key_from_pkcs1_der(der: &[u8]) -> Result<rsa::RsaPrivateKey, CryptoError> {
+    use rsa::pkcs1::DecodeRsaPrivateKey;
+    rsa::RsaPrivateKey::from_pkcs1_der(der).map_err(|_| CryptoError::InvalidKey)
+}
+
+/// Shared helper: export `RsaPrivateKey` to PKCS#1 DER bytes.
+fn rsa_private_key_to_pkcs1_der(key: &rsa::RsaPrivateKey) -> Result<Vec<u8>, CryptoError> {
+    use rsa::pkcs1::EncodeRsaPrivateKey;
+    let doc = key.to_pkcs1_der().map_err(|_| CryptoError::InvalidKey)?;
+    Ok(doc.as_bytes().to_vec())
+}
+
+/// Shared helper: import `RsaPrivateKey` from PKCS#8 PEM string.
+fn rsa_private_key_from_pkcs8_pem(pem: &str) -> Result<rsa::RsaPrivateKey, CryptoError> {
+    rsa::RsaPrivateKey::from_pkcs8_pem(pem).map_err(|_| CryptoError::InvalidKey)
+}
+
+/// Shared helper: export `RsaPrivateKey` to PKCS#8 PEM string.
+fn rsa_private_key_to_pkcs8_pem(key: &rsa::RsaPrivateKey) -> Result<String, CryptoError> {
+    let pem = key
+        .to_pkcs8_pem(LineEnding::LF)
+        .map_err(|_| CryptoError::InvalidKey)?;
+    Ok(pem.to_string())
+}
+
+/// Shared helper: import `RsaPrivateKey` from PKCS#1 PEM string.
+fn rsa_private_key_from_pkcs1_pem(pem: &str) -> Result<rsa::RsaPrivateKey, CryptoError> {
+    use rsa::pkcs1::DecodeRsaPrivateKey;
+    rsa::RsaPrivateKey::from_pkcs1_pem(pem).map_err(|_| CryptoError::InvalidKey)
+}
+
+/// Shared helper: import `RsaPublicKey` from PKCS#1 DER bytes.
+fn rsa_public_key_from_pkcs1_der(der: &[u8]) -> Result<rsa::RsaPublicKey, CryptoError> {
+    use rsa::pkcs1::DecodeRsaPublicKey;
+    rsa::RsaPublicKey::from_pkcs1_der(der).map_err(|_| CryptoError::InvalidKey)
+}
+
+/// Shared helper: export `RsaPublicKey` to PKCS#1 DER bytes.
+fn rsa_public_key_to_pkcs1_der(key: &rsa::RsaPublicKey) -> Result<Vec<u8>, CryptoError> {
+    use rsa::pkcs1::EncodeRsaPublicKey;
+    let doc = key.to_pkcs1_der().map_err(|_| CryptoError::InvalidKey)?;
+    Ok(doc.as_bytes().to_vec())
+}
+
+/// Shared helper: import `RsaPublicKey` from SPKI PEM string.
+fn rsa_public_key_from_spki_pem(pem: &str) -> Result<rsa::RsaPublicKey, CryptoError> {
+    rsa::RsaPublicKey::from_public_key_pem(pem).map_err(|_| CryptoError::InvalidKey)
+}
+
+/// Shared helper: export `RsaPublicKey` to SPKI PEM string.
+fn rsa_public_key_to_spki_pem(key: &rsa::RsaPublicKey) -> Result<String, CryptoError> {
+    let pem = key
+        .to_public_key_pem(LineEnding::LF)
+        .map_err(|_| CryptoError::InvalidKey)?;
+    Ok(pem)
+}
+
+/// Shared helper: import `RsaPublicKey` from PKCS#1 PEM string.
+fn rsa_public_key_from_pkcs1_pem(pem: &str) -> Result<rsa::RsaPublicKey, CryptoError> {
+    use rsa::pkcs1::DecodeRsaPublicKey;
+    rsa::RsaPublicKey::from_pkcs1_pem(pem).map_err(|_| CryptoError::InvalidKey)
+}
 
 // ── RSA PKCS#1v15 SHA-256 ──────────────────────────────────────────────────
 
@@ -44,6 +110,40 @@ impl RsaPkcs1v15Sha256Signer {
             rsa::RsaPrivateKey::from_pkcs8_der(der).map_err(|_| CryptoError::InvalidKey)?;
         Ok(Self {
             signing_key: pkcs1v15::SigningKey::<Sha256>::new(private_key),
+        })
+    }
+
+    /// Construct from a PKCS#8 PEM string (e.g. `"-----BEGIN PRIVATE KEY-----\n..."`).
+    pub fn from_pkcs8_pem(pem: &str) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs8_pem(pem)?;
+        Ok(Self {
+            signing_key: pkcs1v15::SigningKey::<Sha256>::new(sk),
+        })
+    }
+
+    /// Export as PKCS#8 PEM string.
+    pub fn to_pkcs8_pem(&self) -> Result<String, CryptoError> {
+        rsa_private_key_to_pkcs8_pem(self.signing_key.as_ref())
+    }
+
+    /// Construct from PKCS#1 DER bytes (traditional `RSAPrivateKey` format).
+    pub fn from_pkcs1_der(der: &[u8]) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs1_der(der)?;
+        Ok(Self {
+            signing_key: pkcs1v15::SigningKey::<Sha256>::new(sk),
+        })
+    }
+
+    /// Export as PKCS#1 DER bytes.
+    pub fn to_pkcs1_der(&self) -> Result<Vec<u8>, CryptoError> {
+        rsa_private_key_to_pkcs1_der(self.signing_key.as_ref())
+    }
+
+    /// Construct from a PKCS#1 PEM string (e.g. `"-----BEGIN RSA PRIVATE KEY-----\n..."`).
+    pub fn from_pkcs1_pem(pem: &str) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs1_pem(pem)?;
+        Ok(Self {
+            signing_key: pkcs1v15::SigningKey::<Sha256>::new(sk),
         })
     }
 
@@ -68,6 +168,40 @@ impl RsaPkcs1v15Sha256Verifier {
             rsa::RsaPublicKey::from_public_key_der(der).map_err(|_| CryptoError::InvalidKey)?;
         Ok(Self {
             verifying_key: pkcs1v15::VerifyingKey::<Sha256>::new(public_key),
+        })
+    }
+
+    /// Construct from a SPKI PEM string.
+    pub fn from_spki_pem(pem: &str) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_spki_pem(pem)?;
+        Ok(Self {
+            verifying_key: pkcs1v15::VerifyingKey::<Sha256>::new(pk),
+        })
+    }
+
+    /// Export as SPKI PEM string.
+    pub fn to_spki_pem(&self) -> Result<String, CryptoError> {
+        rsa_public_key_to_spki_pem(self.verifying_key.as_ref())
+    }
+
+    /// Construct from PKCS#1 DER bytes.
+    pub fn from_pkcs1_der(der: &[u8]) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_pkcs1_der(der)?;
+        Ok(Self {
+            verifying_key: pkcs1v15::VerifyingKey::<Sha256>::new(pk),
+        })
+    }
+
+    /// Export as PKCS#1 DER bytes.
+    pub fn to_pkcs1_der(&self) -> Result<Vec<u8>, CryptoError> {
+        rsa_public_key_to_pkcs1_der(self.verifying_key.as_ref())
+    }
+
+    /// Construct from a PKCS#1 PEM string.
+    pub fn from_pkcs1_pem(pem: &str) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_pkcs1_pem(pem)?;
+        Ok(Self {
+            verifying_key: pkcs1v15::VerifyingKey::<Sha256>::new(pk),
         })
     }
 
@@ -96,6 +230,40 @@ impl RsaPkcs1v15Sha384Signer {
         })
     }
 
+    /// Construct from a PKCS#8 PEM string.
+    pub fn from_pkcs8_pem(pem: &str) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs8_pem(pem)?;
+        Ok(Self {
+            signing_key: pkcs1v15::SigningKey::<Sha384>::new(sk),
+        })
+    }
+
+    /// Export as PKCS#8 PEM string.
+    pub fn to_pkcs8_pem(&self) -> Result<String, CryptoError> {
+        rsa_private_key_to_pkcs8_pem(self.signing_key.as_ref())
+    }
+
+    /// Construct from PKCS#1 DER bytes.
+    pub fn from_pkcs1_der(der: &[u8]) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs1_der(der)?;
+        Ok(Self {
+            signing_key: pkcs1v15::SigningKey::<Sha384>::new(sk),
+        })
+    }
+
+    /// Export as PKCS#1 DER bytes.
+    pub fn to_pkcs1_der(&self) -> Result<Vec<u8>, CryptoError> {
+        rsa_private_key_to_pkcs1_der(self.signing_key.as_ref())
+    }
+
+    /// Construct from a PKCS#1 PEM string.
+    pub fn from_pkcs1_pem(pem: &str) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs1_pem(pem)?;
+        Ok(Self {
+            signing_key: pkcs1v15::SigningKey::<Sha384>::new(sk),
+        })
+    }
+
     /// Sign `message` and return the signature bytes.
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let mut rng = SysRng;
@@ -117,6 +285,40 @@ impl RsaPkcs1v15Sha384Verifier {
             rsa::RsaPublicKey::from_public_key_der(der).map_err(|_| CryptoError::InvalidKey)?;
         Ok(Self {
             verifying_key: pkcs1v15::VerifyingKey::<Sha384>::new(public_key),
+        })
+    }
+
+    /// Construct from a SPKI PEM string.
+    pub fn from_spki_pem(pem: &str) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_spki_pem(pem)?;
+        Ok(Self {
+            verifying_key: pkcs1v15::VerifyingKey::<Sha384>::new(pk),
+        })
+    }
+
+    /// Export as SPKI PEM string.
+    pub fn to_spki_pem(&self) -> Result<String, CryptoError> {
+        rsa_public_key_to_spki_pem(self.verifying_key.as_ref())
+    }
+
+    /// Construct from PKCS#1 DER bytes.
+    pub fn from_pkcs1_der(der: &[u8]) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_pkcs1_der(der)?;
+        Ok(Self {
+            verifying_key: pkcs1v15::VerifyingKey::<Sha384>::new(pk),
+        })
+    }
+
+    /// Export as PKCS#1 DER bytes.
+    pub fn to_pkcs1_der(&self) -> Result<Vec<u8>, CryptoError> {
+        rsa_public_key_to_pkcs1_der(self.verifying_key.as_ref())
+    }
+
+    /// Construct from a PKCS#1 PEM string.
+    pub fn from_pkcs1_pem(pem: &str) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_pkcs1_pem(pem)?;
+        Ok(Self {
+            verifying_key: pkcs1v15::VerifyingKey::<Sha384>::new(pk),
         })
     }
 
@@ -145,6 +347,40 @@ impl RsaPkcs1v15Sha512Signer {
         })
     }
 
+    /// Construct from a PKCS#8 PEM string.
+    pub fn from_pkcs8_pem(pem: &str) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs8_pem(pem)?;
+        Ok(Self {
+            signing_key: pkcs1v15::SigningKey::<Sha512>::new(sk),
+        })
+    }
+
+    /// Export as PKCS#8 PEM string.
+    pub fn to_pkcs8_pem(&self) -> Result<String, CryptoError> {
+        rsa_private_key_to_pkcs8_pem(self.signing_key.as_ref())
+    }
+
+    /// Construct from PKCS#1 DER bytes.
+    pub fn from_pkcs1_der(der: &[u8]) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs1_der(der)?;
+        Ok(Self {
+            signing_key: pkcs1v15::SigningKey::<Sha512>::new(sk),
+        })
+    }
+
+    /// Export as PKCS#1 DER bytes.
+    pub fn to_pkcs1_der(&self) -> Result<Vec<u8>, CryptoError> {
+        rsa_private_key_to_pkcs1_der(self.signing_key.as_ref())
+    }
+
+    /// Construct from a PKCS#1 PEM string.
+    pub fn from_pkcs1_pem(pem: &str) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs1_pem(pem)?;
+        Ok(Self {
+            signing_key: pkcs1v15::SigningKey::<Sha512>::new(sk),
+        })
+    }
+
     /// Sign `message` and return the signature bytes.
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let mut rng = SysRng;
@@ -166,6 +402,40 @@ impl RsaPkcs1v15Sha512Verifier {
             rsa::RsaPublicKey::from_public_key_der(der).map_err(|_| CryptoError::InvalidKey)?;
         Ok(Self {
             verifying_key: pkcs1v15::VerifyingKey::<Sha512>::new(public_key),
+        })
+    }
+
+    /// Construct from a SPKI PEM string.
+    pub fn from_spki_pem(pem: &str) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_spki_pem(pem)?;
+        Ok(Self {
+            verifying_key: pkcs1v15::VerifyingKey::<Sha512>::new(pk),
+        })
+    }
+
+    /// Export as SPKI PEM string.
+    pub fn to_spki_pem(&self) -> Result<String, CryptoError> {
+        rsa_public_key_to_spki_pem(self.verifying_key.as_ref())
+    }
+
+    /// Construct from PKCS#1 DER bytes.
+    pub fn from_pkcs1_der(der: &[u8]) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_pkcs1_der(der)?;
+        Ok(Self {
+            verifying_key: pkcs1v15::VerifyingKey::<Sha512>::new(pk),
+        })
+    }
+
+    /// Export as PKCS#1 DER bytes.
+    pub fn to_pkcs1_der(&self) -> Result<Vec<u8>, CryptoError> {
+        rsa_public_key_to_pkcs1_der(self.verifying_key.as_ref())
+    }
+
+    /// Construct from a PKCS#1 PEM string.
+    pub fn from_pkcs1_pem(pem: &str) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_pkcs1_pem(pem)?;
+        Ok(Self {
+            verifying_key: pkcs1v15::VerifyingKey::<Sha512>::new(pk),
         })
     }
 
@@ -194,6 +464,40 @@ impl RsaPssSha256Signer {
         })
     }
 
+    /// Construct from a PKCS#8 PEM string.
+    pub fn from_pkcs8_pem(pem: &str) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs8_pem(pem)?;
+        Ok(Self {
+            signing_key: pss::SigningKey::<Sha256>::new(sk),
+        })
+    }
+
+    /// Export as PKCS#8 PEM string.
+    pub fn to_pkcs8_pem(&self) -> Result<String, CryptoError> {
+        rsa_private_key_to_pkcs8_pem(self.signing_key.as_ref())
+    }
+
+    /// Construct from PKCS#1 DER bytes.
+    pub fn from_pkcs1_der(der: &[u8]) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs1_der(der)?;
+        Ok(Self {
+            signing_key: pss::SigningKey::<Sha256>::new(sk),
+        })
+    }
+
+    /// Export as PKCS#1 DER bytes.
+    pub fn to_pkcs1_der(&self) -> Result<Vec<u8>, CryptoError> {
+        rsa_private_key_to_pkcs1_der(self.signing_key.as_ref())
+    }
+
+    /// Construct from a PKCS#1 PEM string.
+    pub fn from_pkcs1_pem(pem: &str) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs1_pem(pem)?;
+        Ok(Self {
+            signing_key: pss::SigningKey::<Sha256>::new(sk),
+        })
+    }
+
     /// Sign `message` and return the signature bytes.
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let mut rng = SysRng;
@@ -215,6 +519,40 @@ impl RsaPssSha256Verifier {
             rsa::RsaPublicKey::from_public_key_der(der).map_err(|_| CryptoError::InvalidKey)?;
         Ok(Self {
             verifying_key: pss::VerifyingKey::<Sha256>::new(public_key),
+        })
+    }
+
+    /// Construct from a SPKI PEM string.
+    pub fn from_spki_pem(pem: &str) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_spki_pem(pem)?;
+        Ok(Self {
+            verifying_key: pss::VerifyingKey::<Sha256>::new(pk),
+        })
+    }
+
+    /// Export as SPKI PEM string.
+    pub fn to_spki_pem(&self) -> Result<String, CryptoError> {
+        rsa_public_key_to_spki_pem(self.verifying_key.as_ref())
+    }
+
+    /// Construct from PKCS#1 DER bytes.
+    pub fn from_pkcs1_der(der: &[u8]) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_pkcs1_der(der)?;
+        Ok(Self {
+            verifying_key: pss::VerifyingKey::<Sha256>::new(pk),
+        })
+    }
+
+    /// Export as PKCS#1 DER bytes.
+    pub fn to_pkcs1_der(&self) -> Result<Vec<u8>, CryptoError> {
+        rsa_public_key_to_pkcs1_der(self.verifying_key.as_ref())
+    }
+
+    /// Construct from a PKCS#1 PEM string.
+    pub fn from_pkcs1_pem(pem: &str) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_pkcs1_pem(pem)?;
+        Ok(Self {
+            verifying_key: pss::VerifyingKey::<Sha256>::new(pk),
         })
     }
 
@@ -243,6 +581,40 @@ impl RsaPssSha384Signer {
         })
     }
 
+    /// Construct from a PKCS#8 PEM string.
+    pub fn from_pkcs8_pem(pem: &str) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs8_pem(pem)?;
+        Ok(Self {
+            signing_key: pss::SigningKey::<Sha384>::new(sk),
+        })
+    }
+
+    /// Export as PKCS#8 PEM string.
+    pub fn to_pkcs8_pem(&self) -> Result<String, CryptoError> {
+        rsa_private_key_to_pkcs8_pem(self.signing_key.as_ref())
+    }
+
+    /// Construct from PKCS#1 DER bytes.
+    pub fn from_pkcs1_der(der: &[u8]) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs1_der(der)?;
+        Ok(Self {
+            signing_key: pss::SigningKey::<Sha384>::new(sk),
+        })
+    }
+
+    /// Export as PKCS#1 DER bytes.
+    pub fn to_pkcs1_der(&self) -> Result<Vec<u8>, CryptoError> {
+        rsa_private_key_to_pkcs1_der(self.signing_key.as_ref())
+    }
+
+    /// Construct from a PKCS#1 PEM string.
+    pub fn from_pkcs1_pem(pem: &str) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs1_pem(pem)?;
+        Ok(Self {
+            signing_key: pss::SigningKey::<Sha384>::new(sk),
+        })
+    }
+
     /// Sign `message` and return the signature bytes.
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let mut rng = SysRng;
@@ -264,6 +636,40 @@ impl RsaPssSha384Verifier {
             rsa::RsaPublicKey::from_public_key_der(der).map_err(|_| CryptoError::InvalidKey)?;
         Ok(Self {
             verifying_key: pss::VerifyingKey::<Sha384>::new(public_key),
+        })
+    }
+
+    /// Construct from a SPKI PEM string.
+    pub fn from_spki_pem(pem: &str) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_spki_pem(pem)?;
+        Ok(Self {
+            verifying_key: pss::VerifyingKey::<Sha384>::new(pk),
+        })
+    }
+
+    /// Export as SPKI PEM string.
+    pub fn to_spki_pem(&self) -> Result<String, CryptoError> {
+        rsa_public_key_to_spki_pem(self.verifying_key.as_ref())
+    }
+
+    /// Construct from PKCS#1 DER bytes.
+    pub fn from_pkcs1_der(der: &[u8]) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_pkcs1_der(der)?;
+        Ok(Self {
+            verifying_key: pss::VerifyingKey::<Sha384>::new(pk),
+        })
+    }
+
+    /// Export as PKCS#1 DER bytes.
+    pub fn to_pkcs1_der(&self) -> Result<Vec<u8>, CryptoError> {
+        rsa_public_key_to_pkcs1_der(self.verifying_key.as_ref())
+    }
+
+    /// Construct from a PKCS#1 PEM string.
+    pub fn from_pkcs1_pem(pem: &str) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_pkcs1_pem(pem)?;
+        Ok(Self {
+            verifying_key: pss::VerifyingKey::<Sha384>::new(pk),
         })
     }
 
@@ -292,6 +698,40 @@ impl RsaPssSha512Signer {
         })
     }
 
+    /// Construct from a PKCS#8 PEM string.
+    pub fn from_pkcs8_pem(pem: &str) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs8_pem(pem)?;
+        Ok(Self {
+            signing_key: pss::SigningKey::<Sha512>::new(sk),
+        })
+    }
+
+    /// Export as PKCS#8 PEM string.
+    pub fn to_pkcs8_pem(&self) -> Result<String, CryptoError> {
+        rsa_private_key_to_pkcs8_pem(self.signing_key.as_ref())
+    }
+
+    /// Construct from PKCS#1 DER bytes.
+    pub fn from_pkcs1_der(der: &[u8]) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs1_der(der)?;
+        Ok(Self {
+            signing_key: pss::SigningKey::<Sha512>::new(sk),
+        })
+    }
+
+    /// Export as PKCS#1 DER bytes.
+    pub fn to_pkcs1_der(&self) -> Result<Vec<u8>, CryptoError> {
+        rsa_private_key_to_pkcs1_der(self.signing_key.as_ref())
+    }
+
+    /// Construct from a PKCS#1 PEM string.
+    pub fn from_pkcs1_pem(pem: &str) -> Result<Self, CryptoError> {
+        let sk = rsa_private_key_from_pkcs1_pem(pem)?;
+        Ok(Self {
+            signing_key: pss::SigningKey::<Sha512>::new(sk),
+        })
+    }
+
     /// Sign `message` and return the signature bytes.
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let mut rng = SysRng;
@@ -313,6 +753,40 @@ impl RsaPssSha512Verifier {
             rsa::RsaPublicKey::from_public_key_der(der).map_err(|_| CryptoError::InvalidKey)?;
         Ok(Self {
             verifying_key: pss::VerifyingKey::<Sha512>::new(public_key),
+        })
+    }
+
+    /// Construct from a SPKI PEM string.
+    pub fn from_spki_pem(pem: &str) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_spki_pem(pem)?;
+        Ok(Self {
+            verifying_key: pss::VerifyingKey::<Sha512>::new(pk),
+        })
+    }
+
+    /// Export as SPKI PEM string.
+    pub fn to_spki_pem(&self) -> Result<String, CryptoError> {
+        rsa_public_key_to_spki_pem(self.verifying_key.as_ref())
+    }
+
+    /// Construct from PKCS#1 DER bytes.
+    pub fn from_pkcs1_der(der: &[u8]) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_pkcs1_der(der)?;
+        Ok(Self {
+            verifying_key: pss::VerifyingKey::<Sha512>::new(pk),
+        })
+    }
+
+    /// Export as PKCS#1 DER bytes.
+    pub fn to_pkcs1_der(&self) -> Result<Vec<u8>, CryptoError> {
+        rsa_public_key_to_pkcs1_der(self.verifying_key.as_ref())
+    }
+
+    /// Construct from a PKCS#1 PEM string.
+    pub fn from_pkcs1_pem(pem: &str) -> Result<Self, CryptoError> {
+        let pk = rsa_public_key_from_pkcs1_pem(pem)?;
+        Ok(Self {
+            verifying_key: pss::VerifyingKey::<Sha512>::new(pk),
         })
     }
 
@@ -402,4 +876,121 @@ pub fn rsa_oaep_sha256_decrypt(sk_der: &[u8], ciphertext: &[u8]) -> Result<Vec<u
     decrypting_key
         .decrypt(ciphertext)
         .map_err(|_| CryptoError::Internal("RSA-OAEP decrypt failed"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rsa::pkcs8::{DecodePrivateKey, EncodePublicKey, LineEnding};
+
+    /// Generate a 2048-bit key pair and return (sk_pkcs8_der, pk_spki_der).
+    fn gen_2048() -> (Vec<u8>, Vec<u8>) {
+        rsa_generate_keypair(2048).unwrap()
+    }
+
+    #[test]
+    fn rsa_pkcs1v15_sha256_pem_roundtrip() {
+        let (sk_der, _pk_der) = gen_2048();
+        let signer = RsaPkcs1v15Sha256Signer::from_pkcs8_der(&sk_der).unwrap();
+
+        // Export PKCS#8 PEM and re-import.
+        let pem = signer.to_pkcs8_pem().unwrap();
+        let signer2 = RsaPkcs1v15Sha256Signer::from_pkcs8_pem(&pem).unwrap();
+
+        // Build matching verifier via SPKI PEM round-trip.
+        let pk_pem = rsa::RsaPrivateKey::from_pkcs8_der(&sk_der)
+            .unwrap()
+            .to_public_key()
+            .to_public_key_pem(LineEnding::LF)
+            .unwrap();
+        let verifier = RsaPkcs1v15Sha256Verifier::from_spki_pem(&pk_pem).unwrap();
+
+        let msg = b"hello pem roundtrip";
+        let sig = signer2.sign(msg).unwrap();
+        verifier.verify(msg, &sig).unwrap();
+    }
+
+    #[test]
+    fn rsa_pss_sha256_pkcs1_der_roundtrip() {
+        use rsa::pkcs1::EncodeRsaPublicKey;
+
+        let (sk_der, _pk_der) = gen_2048();
+        let signer = RsaPssSha256Signer::from_pkcs8_der(&sk_der).unwrap();
+
+        // Export PKCS#1 DER and re-import.
+        let pkcs1_der = signer.to_pkcs1_der().unwrap();
+        let signer2 = RsaPssSha256Signer::from_pkcs1_der(&pkcs1_der).unwrap();
+
+        // Build verifier from PKCS#1 DER of public key.
+        let rsa_sk = rsa::RsaPrivateKey::from_pkcs8_der(&sk_der).unwrap();
+        let pk_pkcs1_der = rsa_sk.to_public_key().to_pkcs1_der().unwrap();
+        let verifier = RsaPssSha256Verifier::from_pkcs1_der(pk_pkcs1_der.as_bytes()).unwrap();
+
+        let msg = b"hello pss pkcs1 roundtrip";
+        let sig = signer2.sign(msg).unwrap();
+        verifier.verify(msg, &sig).unwrap();
+    }
+
+    #[test]
+    fn rsa_pkcs8_pem_parity_with_pkcs8_der() {
+        let (sk_der, pk_der) = gen_2048();
+
+        // Load signer from DER; export to PEM; reload from PEM.
+        let signer_der = RsaPkcs1v15Sha256Signer::from_pkcs8_der(&sk_der).unwrap();
+        let pem = signer_der.to_pkcs8_pem().unwrap();
+        let signer_pem = RsaPkcs1v15Sha256Signer::from_pkcs8_pem(&pem).unwrap();
+
+        let verifier = RsaPkcs1v15Sha256Verifier::from_spki_der(&pk_der).unwrap();
+        let msg = b"parity test message";
+
+        // Both signers must produce verifiable signatures (key identity check via verify).
+        let sig_pem_imported = signer_pem.sign(msg).unwrap();
+        verifier.verify(msg, &sig_pem_imported).unwrap();
+    }
+
+    #[test]
+    fn rsa_malformed_pem_returns_error() {
+        let result = RsaPkcs1v15Sha256Signer::from_pkcs8_pem("not a pem string");
+        assert!(result.is_err(), "expected error for malformed PEM");
+
+        let result_v = RsaPkcs1v15Sha256Verifier::from_spki_pem(
+            "-----BEGIN garbage-----\nabc\n-----END garbage-----\n",
+        );
+        assert!(result_v.is_err(), "expected error for garbage PEM");
+    }
+
+    #[test]
+    fn rsa_malformed_pkcs1_der_returns_error() {
+        let result = RsaPkcs1v15Sha256Signer::from_pkcs1_der(&[0x00; 10]);
+        assert!(result.is_err(), "expected error for malformed PKCS#1 DER");
+
+        let result_pss = RsaPssSha256Signer::from_pkcs1_der(&[0xff; 32]);
+        assert!(
+            result_pss.is_err(),
+            "expected error for malformed PKCS#1 DER (PSS)"
+        );
+    }
+
+    #[test]
+    fn rsa_pkcs1v15_sha256_pkcs1_pem_roundtrip() {
+        use rsa::pkcs1::EncodeRsaPrivateKey;
+
+        let (sk_der, pk_der) = gen_2048();
+        let signer = RsaPkcs1v15Sha256Signer::from_pkcs8_der(&sk_der).unwrap();
+
+        // Export to PKCS#1 DER then import.
+        let pkcs1_der = signer.to_pkcs1_der().unwrap();
+        let signer2 = RsaPkcs1v15Sha256Signer::from_pkcs1_der(&pkcs1_der).unwrap();
+
+        // Export PKCS#1 PEM and import that too.
+        let rsa_sk = rsa::RsaPrivateKey::from_pkcs8_der(&sk_der).unwrap();
+        let pkcs1_pem = rsa_sk.to_pkcs1_pem(LineEnding::LF).unwrap();
+        let signer3 = RsaPkcs1v15Sha256Signer::from_pkcs1_pem(pkcs1_pem.as_str()).unwrap();
+
+        let verifier = RsaPkcs1v15Sha256Verifier::from_spki_der(&pk_der).unwrap();
+        let msg = b"pkcs1 pem round trip";
+
+        verifier.verify(msg, &signer2.sign(msg).unwrap()).unwrap();
+        verifier.verify(msg, &signer3.sign(msg).unwrap()).unwrap();
+    }
 }

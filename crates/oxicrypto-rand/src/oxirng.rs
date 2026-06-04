@@ -17,6 +17,23 @@ use rand_core::{SeedableRng, TryRng};
 ///
 /// On Unix platforms, [`OxiRng`] automatically reseeds itself if the process
 /// PID changes (i.e. after a `fork()`), preventing parent/child state sharing.
+///
+/// # Thread Safety
+///
+/// `OxiRng` is [`Send`] but intentionally **not** [`Sync`].
+///
+/// - **`Send`:** An `OxiRng` instance may be moved across thread boundaries,
+///   so it can be created on one thread and used on another.
+/// - **`!Sync`:** Concurrent shared access from multiple threads is **not**
+///   supported.  `OxiRng` wraps `ChaCha20Rng` from `rand_chacha`, which is
+///   `!Sync` by design — allowing unsynchronized concurrent calls would allow
+///   two threads to observe the same CSPRNG output, undermining cryptographic
+///   guarantees.
+///
+/// For per-thread usage without explicit RNG management, use
+/// [`crate::with_thread_rng`] (requires the `std` feature), which stores an
+/// `OxiRng` in thread-local storage.  For shared state across threads, wrap
+/// the `OxiRng` in a `Mutex<OxiRng>` explicitly.
 pub struct OxiRng {
     pub(crate) inner: ChaCha20Rng,
     #[cfg(unix)]
@@ -131,6 +148,11 @@ impl rand_core::TryCryptoRng for OxiRng {}
 /// full ChaCha20 is not needed.
 ///
 /// Fork-safe: on Unix, detects `fork()` via PID tracking and reseeds.
+///
+/// # Thread Safety
+///
+/// `OxiRng8` is [`Send`] but **not** [`Sync`].  See [`OxiRng`] for the full
+/// rationale.  Use per-thread instances or a `Mutex<OxiRng8>` for shared access.
 pub struct OxiRng8 {
     inner: rand_chacha::ChaCha8Rng,
     #[cfg(unix)]
@@ -219,6 +241,11 @@ impl core::fmt::Debug for OxiRng8 {
 /// margin than ChaCha8.
 ///
 /// Fork-safe: on Unix, detects `fork()` via PID tracking and reseeds.
+///
+/// # Thread Safety
+///
+/// `OxiRng12` is [`Send`] but **not** [`Sync`].  See [`OxiRng`] for the full
+/// rationale.  Use per-thread instances or a `Mutex<OxiRng12>` for shared access.
 pub struct OxiRng12 {
     inner: rand_chacha::ChaCha12Rng,
     #[cfg(unix)]
@@ -297,6 +324,20 @@ impl core::fmt::Debug for OxiRng12 {
         f.debug_struct("OxiRng12").finish_non_exhaustive()
     }
 }
+
+// ── Compile-time Send / !Sync assertions ──────────────────────────────────────
+
+/// Compile-time assertion: `OxiRng` must be `Send`.
+///
+/// Moving an `OxiRng` to another thread is safe — all fields are `Send`.
+const _: () = {
+    fn _assert_send<T: Send>() {}
+    fn _assert_oxi_rng_is_send() {
+        _assert_send::<OxiRng>();
+        _assert_send::<OxiRng8>();
+        _assert_send::<OxiRng12>();
+    }
+};
 
 // ── Unit tests that require private field access ──────────────────────────────
 

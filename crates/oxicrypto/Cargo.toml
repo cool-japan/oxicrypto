@@ -42,6 +42,9 @@ simd = ["dep:cpufeatures"]
 aws-lc = ["dep:oxicrypto-adapter-aws-lc", "oxicrypto-adapter-aws-lc/aws-lc"]
 # Enable the PKCS#11 HSM adapter via cryptoki.
 pkcs11 = ["dep:oxicrypto-adapter-pkcs11", "oxicrypto-adapter-pkcs11/pkcs11"]
+# Alias: `hsm` enables the same PKCS#11 HSM adapter and exposes it as
+# `oxicrypto::hsm::*` (in addition to the existing `oxicrypto::pkcs11::*` path).
+hsm = ["pkcs11"]
 
 [dependencies]
 oxicrypto-core.workspace = true

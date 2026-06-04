@@ -15,3 +15,24 @@ pub use mac::{Mac, StreamingMac};
 pub use pq::Kem;
 pub use rng::Rng;
 pub use sig::{KeyGenerator, Signer, Verifier};
+
+// ---------------------------------------------------------------------------
+// MaybeDebug — conditional Debug supertrait
+// ---------------------------------------------------------------------------
+//
+// When the `debug` Cargo feature is enabled every core trait additionally
+// requires `core::fmt::Debug` as a supertrait, making `Box<dyn Kdf>` etc.
+// printable.  Without the feature the bound is erased.
+//
+// Usage in trait definitions:
+//   `pub trait Kdf: Send + Sync + crate::traits::MaybeDebug { … }`
+
+#[cfg(feature = "debug")]
+pub trait MaybeDebug: core::fmt::Debug {}
+#[cfg(feature = "debug")]
+impl<T: core::fmt::Debug> MaybeDebug for T {}
+
+#[cfg(not(feature = "debug"))]
+pub trait MaybeDebug {}
+#[cfg(not(feature = "debug"))]
+impl<T> MaybeDebug for T {}

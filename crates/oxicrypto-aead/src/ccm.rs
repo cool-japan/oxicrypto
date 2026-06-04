@@ -192,6 +192,12 @@ fn ctr_crypt<C: BlockCipherEncrypt + KeyInit>(
     Ok(())
 }
 
+/// AES-CCM (L=2) max plaintext: 2^16 − 1 = 65 535 bytes.
+///
+/// The message length field is L=2 bytes (nonce = 13 bytes), so the maximum
+/// plaintext is 65 535 bytes per RFC 3610.
+const CCM_MAX_PT: u64 = (1u64 << 16) - 1;
+
 /// Seal (encrypt + authenticate) with the given AES block cipher type.
 ///
 /// Output layout: ciphertext (same length as plaintext) || tag (16 bytes).
@@ -202,6 +208,9 @@ fn ccm_seal<C: BlockCipherEncrypt + KeyInit>(
     pt: &[u8],
     ct_out: &mut [u8],
 ) -> Result<usize, CryptoError> {
+    if pt.len() as u64 > CCM_MAX_PT {
+        return Err(CryptoError::BadInput);
+    }
     let required = pt.len().checked_add(TAG_LEN).ok_or(CryptoError::BadInput)?;
     if ct_out.len() < required {
         return Err(CryptoError::BufferTooSmall);
@@ -288,6 +297,11 @@ impl Aead for Aes128Ccm {
         TAG_LEN
     }
 
+    /// Conservative limit per NIST SP 800-38C (L=2 field: 2^16 − 1 bytes).
+    fn max_plaintext_len(&self) -> u64 {
+        CCM_MAX_PT
+    }
+
     fn seal(
         &self,
         key: &[u8],
@@ -351,6 +365,11 @@ impl Aead for Aes256Ccm {
 
     fn tag_len(&self) -> usize {
         TAG_LEN
+    }
+
+    /// Conservative limit per NIST SP 800-38C (L=2 field: 2^16 − 1 bytes).
+    fn max_plaintext_len(&self) -> u64 {
+        CCM_MAX_PT
     }
 
     fn seal(

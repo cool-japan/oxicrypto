@@ -284,6 +284,10 @@ impl Aead for Deoxys2_128 {
     fn tag_len(&self) -> usize {
         TAG_LEN
     }
+    /// Deoxys-II has no practical plaintext length limit; returns `u64::MAX`.
+    fn max_plaintext_len(&self) -> u64 {
+        u64::MAX
+    }
     fn seal(
         &self,
         key: &[u8],

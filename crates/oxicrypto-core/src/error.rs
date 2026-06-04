@@ -1,5 +1,6 @@
 /// Unified error type for all OxiCrypto operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub enum CryptoError {
     /// Supplied key has wrong length or is otherwise invalid.
     InvalidKey,
@@ -12,6 +13,12 @@ pub enum CryptoError {
     /// General bad-input condition (e.g. zero-length KDF output requested).
     BadInput,
     /// An internal or backend error with a static message.
+    ///
+    /// **Serde note:** When deserializing, the `&'static str` payload cannot
+    /// be reconstructed from arbitrary data in a `no_std + alloc` crate.
+    /// The variant is deserialized as `Internal("")` — the serialized form
+    /// preserves the string for observability/logging; round-trip lossiness
+    /// is intentional.
     Internal(&'static str),
     /// Key-exchange or encapsulation/decapsulation failure (e.g. ML-KEM).
     Kex,
@@ -23,6 +30,62 @@ pub enum CryptoError {
     Encoding,
     /// Requested algorithm is not compiled-in or not supported at runtime.
     UnsupportedAlgorithm,
+}
+
+// ---------------------------------------------------------------------------
+// Manual `Deserialize` implementation
+// ---------------------------------------------------------------------------
+//
+// Derived `Deserialize` would bind lifetime `'de` to the `&'static str` in
+// `Internal`, producing `impl Deserialize<'static>` only — unusable with
+// most codecs that operate on shorter-lived slices.
+//
+// Instead we manually implement `Deserialize` as `DeserializeOwned`-compatible:
+// the `Internal` variant reads the payload as an owned `String` (then drops it)
+// and always reconstructs `Internal("")`.  All other variants contain no
+// borrowed data and round-trip exactly.
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for CryptoError {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Mirror the variant names used by the derived `Serialize`.
+        #[derive(serde::Deserialize)]
+        #[serde(rename = "CryptoError")]
+        enum Repr {
+            InvalidKey,
+            InvalidNonce,
+            InvalidTag,
+            BufferTooSmall,
+            BadInput,
+            /// Payload deserialized as owned String, discarded afterward.
+            Internal(#[allow(dead_code)] alloc::string::String),
+            Kex,
+            Sign,
+            Rng,
+            Encoding,
+            UnsupportedAlgorithm,
+        }
+
+        let repr = Repr::deserialize(deserializer)?;
+        Ok(match repr {
+            Repr::InvalidKey => CryptoError::InvalidKey,
+            Repr::InvalidNonce => CryptoError::InvalidNonce,
+            Repr::InvalidTag => CryptoError::InvalidTag,
+            Repr::BufferTooSmall => CryptoError::BufferTooSmall,
+            Repr::BadInput => CryptoError::BadInput,
+            // String payload is intentionally discarded; &'static str
+            // cannot be reconstructed from deserialized data without unsafe.
+            Repr::Internal(_) => CryptoError::Internal(""),
+            Repr::Kex => CryptoError::Kex,
+            Repr::Sign => CryptoError::Sign,
+            Repr::Rng => CryptoError::Rng,
+            Repr::Encoding => CryptoError::Encoding,
+            Repr::UnsupportedAlgorithm => CryptoError::UnsupportedAlgorithm,
+        })
+    }
 }
 
 impl core::fmt::Display for CryptoError {

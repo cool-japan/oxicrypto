@@ -107,9 +107,13 @@ pub fn available_algorithms() -> Vec<AlgorithmId> {
         AlgorithmId::Sha256,
         AlgorithmId::Sha384,
         AlgorithmId::Sha512,
+        AlgorithmId::Sha512_256,
         AlgorithmId::Sha3_256,
         AlgorithmId::Sha3_384,
         AlgorithmId::Sha3_512,
+        AlgorithmId::Blake2b256,
+        AlgorithmId::Blake2b512,
+        AlgorithmId::Blake2s256,
         AlgorithmId::Blake3,
     ]);
 
@@ -123,6 +127,8 @@ pub fn available_algorithms() -> Vec<AlgorithmId> {
         AlgorithmId::XChaCha20Poly1305,
         AlgorithmId::Aes128Ccm,
         AlgorithmId::Aes256Ccm,
+        AlgorithmId::Aes128Ocb3,
+        AlgorithmId::Aes256Ocb3,
         AlgorithmId::DeoxysII128,
         // AES Key Wrap (RFC 3394) — always included with the pure feature.
         AlgorithmId::AesKeyWrap128,
@@ -154,12 +160,15 @@ pub fn available_algorithms() -> Vec<AlgorithmId> {
         AlgorithmId::RsaPkcs1v15Sha384,
         AlgorithmId::RsaPkcs1v15Sha512,
         AlgorithmId::RsaPssSha256,
+        AlgorithmId::RsaPssSha384,
+        AlgorithmId::RsaPssSha512,
         AlgorithmId::SchnorrBip340,
     ]);
 
     // Key exchange
     ids.extend_from_slice(&[
         AlgorithmId::X25519,
+        AlgorithmId::X448,
         AlgorithmId::EcdhP256,
         AlgorithmId::EcdhP384,
         AlgorithmId::EcdhP521,
@@ -183,6 +192,8 @@ pub fn available_algorithms() -> Vec<AlgorithmId> {
         AlgorithmId::MlKem512,
         AlgorithmId::MlKem768,
         AlgorithmId::MlKem1024,
+        AlgorithmId::XWing768X25519,
+        AlgorithmId::HybridKem1024P384,
         AlgorithmId::MlDsa44,
         AlgorithmId::MlDsa65,
         AlgorithmId::MlDsa87,

@@ -1,7 +1,7 @@
 # OxiCrypto TODO
 
-**v0.1.0 released 2026-06-01 — all milestones M0–M5 complete.
-1116 tests pass. Backlog items below are post-1.0 scope.**
+**v0.1.1 released 2026-06-04 — version bump; all milestones M0–M5 complete.
+1558 tests pass. Backlog items below are post-1.0 scope.**
 
 Milestones derived from `../phase2/oxicrypto_blueprint.md` §Phased milestones.
 

@@ -27,11 +27,13 @@ use crate::mlkem::{
 //  OS-seeded RNG helper
 // ─────────────────────────────────────────────────────────────────────────────
 
-fn hybrid_os_rng() -> Result<rand_chacha::ChaCha20Rng, CryptoError> {
-    use rand_core::SeedableRng;
-    let mut seed = [0u8; 32];
-    getrandom::fill(&mut seed).map_err(|_| CryptoError::Rng)?;
-    Ok(rand_chacha::ChaCha20Rng::from_seed(seed))
+/// Create an OS-seeded RNG for hybrid KEM operations.
+///
+/// Uses `OxiRng` (ChaCha20, fork-safe) wrapped in [`rand_core::UnwrapErr`]
+/// to satisfy the `CryptoRng` (`TryCryptoRng<Error = Infallible>`) bound
+/// required by the ML-KEM and X25519/ECDH APIs.
+fn hybrid_os_rng() -> Result<rand_core::UnwrapErr<oxicrypto_rand::OxiRng>, CryptoError> {
+    oxicrypto_rand::OxiRng::new().map(rand_core::UnwrapErr)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

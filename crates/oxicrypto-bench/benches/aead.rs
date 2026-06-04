@@ -8,6 +8,18 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Through
 use oxicrypto::{aead_impl, AeadAlgo};
 use oxicrypto_rand::OxiRng;
 
+// ── Quick-mode helper ─────────────────────────────────────────────────────────
+//
+// When BENCH_QUICK=1 is set, reduce sample size to 10 for CI smoke testing.
+// This keeps total bench time under a few seconds while still verifying that
+// the benchmarks compile and execute without errors.
+
+fn apply_quick_mode(group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
+    if std::env::var("BENCH_QUICK").as_deref() == Ok("1") {
+        group.sample_size(10);
+    }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn make_rng() -> OxiRng {
@@ -54,6 +66,7 @@ fn bench_aead_standard(c: &mut Criterion) {
         let fix = aead_fixture(&mut rng, algo);
         let tag_len = a.tag_len();
         let mut group = c.benchmark_group(format!("aead/{name}"));
+        apply_quick_mode(&mut group);
 
         for &sz in sizes {
             let pt = random_bytes(&mut rng, sz);
@@ -83,6 +96,7 @@ fn bench_aead_siv(c: &mut Criterion) {
         let fix = aead_fixture(&mut rng, algo);
         let tag_len = a.tag_len();
         let mut group = c.benchmark_group(format!("aead/{name}"));
+        apply_quick_mode(&mut group);
 
         for &sz in sizes {
             let pt = random_bytes(&mut rng, sz);
@@ -109,6 +123,7 @@ fn bench_aead_xchacha(c: &mut Criterion) {
     let fix = aead_fixture(&mut rng, algo);
     let tag_len = a.tag_len();
     let mut group = c.benchmark_group(format!("aead/{name}"));
+    apply_quick_mode(&mut group);
 
     for &sz in sizes {
         let pt = random_bytes(&mut rng, sz);
@@ -137,6 +152,7 @@ fn bench_aead_ccm(c: &mut Criterion) {
         let fix = aead_fixture(&mut rng, algo);
         let tag_len = a.tag_len();
         let mut group = c.benchmark_group(format!("aead/{name}"));
+        apply_quick_mode(&mut group);
 
         for &sz in sizes {
             let pt = random_bytes(&mut rng, sz);
@@ -165,6 +181,7 @@ fn bench_aead_ocb3(c: &mut Criterion) {
         let fix = aead_fixture(&mut rng, algo);
         let tag_len = a.tag_len();
         let mut group = c.benchmark_group(format!("aead/{name}"));
+        apply_quick_mode(&mut group);
 
         for &sz in sizes {
             let pt = random_bytes(&mut rng, sz);
@@ -181,6 +198,41 @@ fn bench_aead_ocb3(c: &mut Criterion) {
     }
 }
 
+// ── Deoxys-II benchmarks ──────────────────────────────────────────────────────
+//
+// Deoxys-II-128-128 is the CAESAR final-portfolio winner for the defence-in-depth
+// use case (nonce-misuse-resistant AEAD).  OxiCrypto-only; no ring/aws-lc-rs
+// equivalent.
+//
+// Nonce is 16 bytes (128-bit) — larger than standard 12-byte AEAD nonces.
+// Benchmark at 1 KiB and 64 KiB to cover both cache-resident and larger payloads.
+
+fn bench_aead_deoxys(c: &mut Criterion) {
+    let mut rng = make_rng();
+    let sizes: &[usize] = &[1024, 65536];
+
+    let algo = AeadAlgo::DeoxysII128;
+    let name = format!("{algo}");
+    let a = aead_impl(algo);
+    let fix = aead_fixture(&mut rng, algo);
+    let tag_len = a.tag_len();
+    let mut group = c.benchmark_group(format!("aead/{name}"));
+    apply_quick_mode(&mut group);
+
+    for &sz in sizes {
+        let pt = random_bytes(&mut rng, sz);
+        let mut ct = vec![0u8; sz + tag_len];
+        group.throughput(Throughput::Bytes(sz as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(sz), &pt, |b, pt| {
+            b.iter(|| {
+                a.seal(&fix.key, &fix.nonce, b"", pt, &mut ct)
+                    .expect("deoxys-ii seal failed");
+            });
+        });
+    }
+    group.finish();
+}
+
 // ── Criterion wiring ──────────────────────────────────────────────────────────
 
 criterion_group!(
@@ -190,5 +242,6 @@ criterion_group!(
     bench_aead_xchacha,
     bench_aead_ccm,
     bench_aead_ocb3,
+    bench_aead_deoxys,
 );
 criterion_main!(benches);

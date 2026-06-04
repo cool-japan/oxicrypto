@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use crate::CryptoError;
 
 /// Diffie-Hellman or similar key-agreement primitive.
-pub trait KeyAgreement: Send + Sync {
+pub trait KeyAgreement: Send + Sync + crate::traits::MaybeDebug {
     /// Human-readable algorithm identifier (e.g. `"X25519"`).
     #[must_use]
     fn name(&self) -> &'static str;

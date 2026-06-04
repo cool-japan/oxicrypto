@@ -4,6 +4,53 @@ All notable changes to OxiCrypto are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-06-04
+
+### Added
+
+- **`CommittingAead<'a>`** (oxicrypto-aead) — UtC/CMT-1 key-committing AEAD wrapper: prepends a 32-byte HKDF-SHA-256 commitment to every ciphertext, preventing invisible-salamander and partitioning-oracle attacks (Bellare & Hoang, EUROCRYPT 2022).
+- **`bcrypt`/`BcryptKdf`** (oxicrypto-kdf) — OpenBSD-compatible `$2b$` bcrypt password hashing implemented from scratch in pure Rust (Blowfish + Eksblowfish key schedule; full `$2b$cc$22-char-salt 31-char-hash` string format).
+- **`StreamingHashHmac<H, F>`** (oxicrypto-mac) — generic RFC 2104 HMAC over any `StreamingHash` implementation, decoupling `oxicrypto-mac` from specific digest crates.
+- **`ed25519ctx_sign` / `ed25519ctx_verify`** (oxicrypto-sig) — Ed25519ctx context-variant signatures per RFC 8032 §5.1.5, providing protocol-level domain separation via a `dom2(0, ctx)` prefix.
+- **`ed25519ph_sign` / `ed25519ph_verify` / `ed25519ph_sign_prehash`** (oxicrypto-sig) — Ed25519ph prehash variant (RFC 8032 §5.1.6) for streaming large messages.
+- **MuSig2 multi-signature** (oxicrypto-sig) — two-round n-of-n multi-signature protocol for Ed25519 (Nick–Ruffing–Seurin 2021): `musig2_commit`, `musig2_sign`, `musig2_aggregate`, `musig2_verify`, `musig2_verify_ed25519`, types `MuSig2SecretKey`, `MuSig2PublicKey`, `SecNonce` (single-use, zeroized on drop), `PubNonce`, `PartialSig`, `MuSig2Signature`.
+- **`negotiate_kex`** (oxicrypto-kex) — resolve TLS named group strings (`"x25519"`, `"secp256r1"`, `"P-384"`, …) to a boxed `KeyAgreement` implementation for TLS stack integration.
+- **`X25519::agree_with_key` / `EcdhP256::agree_with_secret`** (oxicrypto-kex) — typed-key overloads accepting `SecretKey<N>` / `SecretVec` for compile-time type safety.
+- **`NonceSequence::with_random_prefix`** (oxicrypto-aead, `rand` feature) — construct a `NonceSequence` with a cryptographically secure random prefix drawn from `OxiRng`.
+- **`AlgorithmId::Blake2s256`, `Aes128Ocb3`, `Aes256Ocb3`, `RsaPssSha384`, `RsaPssSha512`** (oxicrypto-core) — new algorithm identifiers for previously-missing variants.
+- **`AwsLcHkdf`** (oxicrypto-adapter-aws-lc) — HKDF-SHA-256/384/512 backed by `aws-lc-rs`, implementing the `Kdf` trait.
+- **`AwsLcHmac`** (oxicrypto-adapter-aws-lc) — HMAC-SHA-256/384/512 backed by `aws-lc-rs`, implementing the `Mac` trait.
+- **`Pkcs11KeyProvider` / `Pkcs11ExtractableKeyProvider`** (oxicrypto-adapter-pkcs11, `oxistore` feature) — `oxistore-encrypt::KeyProvider` bridge: derives a 32-byte key via HMAC-SHA-256 on the HSM or extracts an AES key directly from a `CKA_EXTRACTABLE` token object; key bytes are zeroized on drop.
+- **PKCS#11 session pool** (oxicrypto-adapter-pkcs11) — `Pkcs11SessionPool` with bounded slot reuse and `Pkcs11TlsProvider` for TLS-layer sign/verify offload to an HSM.
+- **`SigningKey44/65/87::verifying_key`** (oxicrypto-pq) — ergonomic accessor returning the matching `VerifyingKey*` without separate derivation.
+- **`hash_fixed`** methods (oxicrypto-hash) — alloc-free `[u8; N]`-returning hash helpers on all concrete hash types (`Sha256`, `Sha384`, `Sha512`, `Sha512_256`, `Sha3_*`, `Blake2b*`, `Blake2s256`, `Blake3`), recommended for `no_std`/embedded callers.
+- **`OUTPUT_LEN` constants** (oxicrypto-hash) — added `OUTPUT_LEN: usize` alias to all hash types alongside `DIGEST_LEN` for use in generic const contexts.
+- **`serde` feature for `CryptoError`** (oxicrypto-core) — `Serialize` derived and a hand-written `Deserialize` (avoids lifetime issues with `Internal(&'static str)`; the payload is intentionally dropped on round-trip).
+- **`serde` and `oxicode`** added to workspace dependencies.
+- **Wycheproof KAT tests** (oxicrypto-hash, oxicrypto-mac) — `kat_wycheproof.rs` for hash algorithms; `kat_cmac_nist.rs`, `kat_hmac_sha384.rs`, `kat_hmac_wycheproof.rs`, `kat_kmac_nist.rs`, `kat_poly1305_rfc8439.rs` for MAC algorithms.
+- **ACVP/NIST KAT tests** (oxicrypto-pq) — `kat_acvp_mldsa.rs`, `kat_nist_mldsa.rs`, `kat_mldsa.rs` with FIPS 204 test vectors.
+- **`ECDSA::sign_fmt` / `verify_fmt`** (oxicrypto-sig) — `SignatureFormat` enum (`Der` | `Raw`) on P-256/P-384/P-521 signers/verifiers to output raw `r ‖ s` or DER-encoded signatures.
+- **`EcdsaP256Signer::sign_with_hash` / `EcdsaP256Verifier::verify_with_hash` / `verify_prehash`** (oxicrypto-sig) — hash-agnostic signing and pre-hash verification paths for P-256.
+- **RSA PKCS#1 DER helpers** (oxicrypto-sig) — `from_pkcs1_der` / `to_pkcs1_der` / `from_pkcs8_pem` / `to_pkcs8_pem` shared helpers for RSA key import/export.
+- **Benchmark scripts** (oxicrypto-bench) — `bench_archive.sh`, `bench_compare.sh`, `bench_ratios.py`, `bench_simd_compare.sh`, `bench_summary.py`; new criterion groups for RNG, factory overhead, and AEAD throughput.
+- **Fuzz targets** (oxicrypto-hash, oxicrypto-sig) — `fuzz_hash_no_panic`, `fuzz_streaming_equivalence`, `fuzz_xof_no_panic`, `fuzz_sig`.
+
+### Changed
+
+- **`ml-kem` workspace dep** — enabled `alloc` feature so ML-KEM and ML-DSA key structs (`A_hat` matrix ~48 KB for ML-DSA-65) are heap-allocated via `MaybeBox`, eliminating test-thread stack overflows.
+- **`OxiRng` RNG in ML-KEM/ML-DSA/hybrid KEMs** — replaced ad-hoc `getrandom + rand_chacha::from_seed` pattern with `OxiRng::new().map(rand_core::UnwrapErr)` for consistent fork-safe entropy sourcing across the workspace.
+- **`OxiRng` / `OxiRng8` / `OxiRng12` thread-safety documentation** — explicitly documents `Send` + `!Sync` semantics; added compile-time `_assert_send` assertions for all three types.
+- **`AlgorithmId` category routing** — `Blake2s256`, `Aes128Ocb3`, `Aes256Ocb3`, `RsaPssSha384`, `RsaPssSha512` now route to the correct `AlgorithmCategory` in `AlgorithmId::category()`.
+- **`Aead` trait documentation** — expanded with a key-length reference table and note on `debug` feature supertrait.
+- **`EcdsaP256Signer::signing_key` / `EcdsaP256Verifier::verifying_key` visibility** — changed from private to `pub(crate)` to enable intra-crate composition (e.g. `sign_with_hash`).
+- **`serde` and `oxicode` added to workspace `[dependencies]`** — available for all member crates with consistent versions.
+- **Dev profile optimization** — `[profile.dev.package."*"]` set to `opt-level = 3` so crypto-heavy external deps (SLH-DSA, Keccak, SHAKE) compile fast in tests; workspace crates stay at opt-level 0. `oxicrypto-pq` explicitly set to opt-level 3 to handle SLH-DSA monomorphization.
+
+### Fixed
+
+- **ML-DSA test-thread stack overflow** — ML-DSA-65 `A_hat` key matrix (~48 KB) previously lived on the stack; enabling `ml-kem`'s `alloc` feature boxes it via `MaybeBox`, fixing intermittent stack overflows in nextest.
+- **`oxicrypto-hash` `no_std` doc comment** — corrected misleading note about `alloc` linkage: the crate always links `alloc`; the `no_std` feature flag is an API-guidance signal, not a link-time exclusion.
+
 ## [0.1.0] — 2026-06-01
 
 Initial public release of the OxiCrypto Pure Rust cryptographic primitive
@@ -96,4 +143,5 @@ versions in `Cargo.toml`. No custom cryptographic primitives are written.
 The default feature set is 100% Pure Rust with zero `*-sys` crates.
 Bounded FFI adapters (aws-lc, pkcs11) are strictly feature-gated.
 
+[0.1.1]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.1
 [0.1.0]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.0

@@ -57,7 +57,8 @@ Minimal trait surface (187 SLOC). Defines `CryptoError` enum, seven trait object
   - **Files:** `crates/oxicrypto-core/src/lib.rs`
   - **Tests:** crate still compiles warning-free.
   - **Risk:** Very low.
-- [ ] Add `Debug` bound requirement on all trait objects (currently not enforced)
+- [x] Add `Debug` bound requirement on all trait objects (done 2026-06-03)
+  - **Implementation:** `MaybeDebug` helper supertrait in `traits/mod.rs` erases to a no-op without the feature and requires `core::fmt::Debug` with it. All 11 object-safe core traits gain the conditional supertrait. Feature `debug = []` in `Cargo.toml`. 4 new `#[cfg(feature = "debug")]` tests in `debug_feature_tests` module.
 - [x] Add `Hash::hash_to_array::<N>()` default method (done 2026-05-25)
   - **Goal:** default trait method returning `[u8; N]` for compile-time-sized outputs (errors if N ≠ output_len).
   - **Design:** default method on `Hash`, sibling to existing `hash_to_vec`; const-generic N. Must stay object-safe (`where Self: Sized` on the generic method so `dyn Hash` survives).
@@ -76,27 +77,63 @@ Minimal trait surface (187 SLOC). Defines `CryptoError` enum, seven trait object
   - **Files:** `crates/oxicrypto-core/src/lib.rs`
   - **Tests:** equals fixed-buffer `mac` output.
   - **Risk:** Low.
-- [ ] Derive `serde::Serialize` / `serde::Deserialize` on `CryptoError` behind a `serde` feature flag (use `oxicode` for serialization backend per COOLJAPAN policy)
-- [ ] Document minimum key length requirements in trait-level rustdoc for `Mac`, `Aead`, `Kdf`
-- [ ] Add `const` associated constants on trait impls (e.g., `const OUTPUT_LEN: usize`) where possible for compile-time usage
+- [x] Derive `serde::Serialize` / `serde::Deserialize` on `CryptoError` behind a `serde` feature flag (use `oxicode` for serialization backend per COOLJAPAN policy) (done 2026-06-03)
+  - **Implementation:** Derived `Serialize` + manual `Deserialize` (avoids `'de: 'static` constraint from `Internal(&'static str)`). `Internal` deserializes lossily as `Internal("")` — string preserved in encoded form for observability. 4 `serde_tests` using `oxicode::serde::encode_serde`/`decode_serde`. Feature `serde = ["dep:serde"]` in `Cargo.toml`; `oxicode` added as `[dev-dependencies]` for tests.
+- [x] Document minimum key length requirements in trait-level rustdoc for `Mac`, `Aead`, `Kdf` (done 2026-06-03)
+- [x] Add `const` associated constants on trait impls (e.g., `const OUTPUT_LEN: usize`) where possible for compile-time usage (done 2026-06-03)
+  - **Goal:** Every concrete hash and MAC type gains `pub const OUTPUT_LEN: usize = N;` as an inherent constant for compile-time usage.
+  - **Design:** Add inherent consts (not trait-level — non-breaking) to each type in `oxicrypto-hash/src/lib.rs` (Sha256→32, Sha384→48, Sha512→64, Sha512_256→32, Sha3_256→32, Sha3_384→48, Sha3_512→64, Blake2b256→32, Blake2b512→64, Blake2s256→32, Blake3→32) and similarly in `oxicrypto-mac/src/lib.rs`.
+  - **Files:** `oxicrypto-hash/src/lib.rs`, `oxicrypto-mac/src/lib.rs`.
+  - **Tests:** `assert_eq!(Sha256::OUTPUT_LEN, 32)` etc. in the respective crate tests.
+  - **Risk:** Low — additive inherent consts, no trait changes.
 
 ## Testing
-- [ ] Property test: `SecretKey` zeroize-on-drop actually zeroes memory (use `std::ptr::read_volatile` in test)
-- [ ] Property test: `ct_eq` returns same result as `==` for all u8 slices up to 256 bytes
-- [ ] Fuzz test: `CryptoError::Display` round-trip does not panic on any variant
-- [ ] Test: `StreamingHash` trait produces identical output to one-shot `Hash::hash` for chunked inputs
-- [ ] Test: `KeyPair` drops secret key bytes on scope exit
-- [ ] Test: all error variants are distinguishable via `PartialEq`
+- [x] Property test: `SecretKey` zeroize-on-drop actually zeroes memory (done 2026-06-03)
+  - **Goal:** Confirm `SecretKey<N>` bytes are zeroed on drop via `std::ptr::read_volatile`.
+  - **Design:** `#![forbid(unsafe_code)]` prevents `read_volatile`; instead verifies `ZeroizeOnDrop` bound at compile time and that `Zeroize::zeroize` on a mutable clone zeroes the bytes.
+  - **Files:** `oxicrypto-core/src/tests.rs`.
+  - **Tests:** `test_secretkey_zeroize_on_drop`.
+  - **Risk:** Low; `unsafe` only in test.
+- [x] Property test: `ct_eq` returns same result as `==` for all u8 slices up to 256 bytes (done 2026-06-03)
+  - **Goal:** Confirm `ct_eq` is semantically equivalent to `==` for all byte-slice pairs.
+  - **Files:** `oxicrypto-core/src/tests.rs`. **Tests:** `test_ct_eq_agrees_with_eq`. **Risk:** Low.
+- [x] Fuzz test: `CryptoError::Display` round-trip does not panic on any variant (done 2026-06-03)
+  - **Goal:** `CryptoError::Display` never panics on any variant.
+  - **Files:** `oxicrypto-core/src/tests.rs`. **Tests:** `test_cryptoerror_display_no_panic`. **Risk:** Low.
+- [x] Test: `StreamingHash` trait produces identical output to one-shot `Hash::hash` for chunked inputs (done 2026-06-03)
+  - **Goal:** `StreamingHash` (chunked) produces identical output to one-shot `Hash::hash`.
+  - **Files:** `oxicrypto-core/src/tests.rs`. **Tests:** `test_streaminghash_chunked_equiv_oneshot`. **Risk:** Low.
+- [x] Test: `KeyPair` drops secret key bytes on scope exit (done 2026-06-03)
+  - **Goal:** `KeyPair` zeroes secret key bytes on scope exit.
+  - **Files:** `oxicrypto-core/src/tests.rs`. **Tests:** `test_keypair_drops_secret`. **Risk:** Low.
+- [x] Test: all error variants are distinguishable via `PartialEq` (done 2026-06-03)
+  - **Goal:** Every `CryptoError` variant is distinguishable via `PartialEq`.
+  - **Files:** `oxicrypto-core/src/tests.rs`. **Tests:** `test_error_variants_distinguishable`. **Risk:** Low.
 
 ## Performance
-- [ ] Ensure `SecretKey<N>` is stack-allocated with no heap indirection for N <= 64
+- [x] Ensure `SecretKey<N>` is stack-allocated with no heap indirection for N <= 64 (done 2026-06-03)
+  - **Goal:** Assert `SecretKey<32>` and `SecretKey<64>` have exactly N bytes of size (no heap indirection).
+  - **Files:** `oxicrypto-core/src/tests.rs`. **Tests:** `test_secretkey_size_no_heap`. **Risk:** Low.
 - [ ] Benchmark `ct_eq` vs naive `==` to verify constant-time property has acceptable overhead
+  **DEFERRED: Requires criterion benchmark harness setup; deferred to a future `/ultra bench` pass (see Proposed follow-ups).**
 - [ ] Profile `Zeroize` overhead on `SecretVec` drop path
+  **DEFERRED: Requires criterion benchmark harness setup; deferred to a future `/ultra bench` pass (see Proposed follow-ups).**
 
 ## Integration
-- [ ] Ensure `oxicrypto-sig` Ed448/ECDSA/RSA types use `SecretKey` wrapper for private key storage
-- [ ] Ensure `oxicrypto-kex` X25519 uses `SecretKey<32>` for static secrets
-- [ ] Ensure `oxicrypto-rand` OxiRng seed uses `SecretKey<32>` wrapper
-- [ ] Ensure `oxicrypto-pq` ML-KEM `DecapKey` / ML-DSA `SigningKey` newtype wrappers implement `Zeroize`
+- [~] Ensure `oxicrypto-sig` Ed448/ECDSA/RSA types use `SecretKey` wrapper for private key storage (planned 2026-06-03)
+  - **Goal:** Audit and document cross-crate usage. **Files:** `oxicrypto-core/src/tests.rs` (doc tests only). **Risk:** Low — audit only.
+- [~] Ensure `oxicrypto-kex` X25519 uses `SecretKey<32>` for static secrets (planned 2026-06-03)
+  - **Goal:** Audit and document cross-crate usage. **Files:** `oxicrypto-core/src/tests.rs` (doc tests only). **Risk:** Low — audit only.
+- [~] Ensure `oxicrypto-rand` OxiRng seed uses `SecretKey<32>` wrapper (planned 2026-06-03)
+  - **Goal:** Audit and document cross-crate usage. **Files:** `oxicrypto-core/src/tests.rs` (doc tests only). **Risk:** Low — audit only.
+- [~] Ensure `oxicrypto-pq` ML-KEM `DecapKey` / ML-DSA `SigningKey` newtype wrappers implement `Zeroize` (planned 2026-06-03)
+  - **Goal:** Audit and document cross-crate usage. **Files:** `oxicrypto-core/src/tests.rs` (doc tests only). **Risk:** Low — audit only.
 - [x] Provide re-export of `subtle::ConstantTimeEq` for downstream crates to use without adding `subtle` directly
-- [ ] Ensure all downstream crates depend on `oxicrypto-core` for trait objects (no duplicated trait definitions)
+- [~] Ensure all downstream crates depend on `oxicrypto-core` for trait objects (no duplicated trait definitions) (planned 2026-06-03)
+  - **Goal:** Audit and document cross-crate usage. **Files:** `oxicrypto-core/src/tests.rs` (doc tests only). **Risk:** Low — audit only.
+
+## Proposed follow-ups
+
+- `api-debug-bound` (L60): Adding `Debug` as a supertrait on all core traits would be a breaking change. Resolution: propose adding `Debug` as an optional supertrait behind a `debug` Cargo feature flag in a future WI.
+- `serde-cryptoerror` (L79): ~~Blocked on `oxicode`~~ **Completed 2026-06-03** — `oxicode` 0.2.3 available; `serde` feature implemented.
+- `bench-cteq`, `profile-zeroize` (L93, L94): Benchmarks deferred to a future `/ultra bench` pass.

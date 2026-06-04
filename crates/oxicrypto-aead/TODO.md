@@ -43,8 +43,18 @@ Eleven AEAD algorithms implemented. Covers AES-128-GCM, AES-256-GCM (NIST SP 800
 - [x] Add `SealedBox` format: nonce-prefixed ciphertext container `nonce || ciphertext || tag` with `seal_box` / `open_box` helpers (~50 SLOC) (done 2026-05-25)
 - [x] AES Key Wrap (RFC 3394 / NIST SP 800-38F): `aes128_key_wrap/unwrap`, `aes256_key_wrap/unwrap` via `aes-kw 0.3.0` — standalone API, no `Aead` trait (~120 SLOC, done 2026-05-25)
   - **Note:** AES-SIV dropped — `aes-siv 0.8.0-rc.3` requires `aead 0.6`, incompatible with workspace `aead 0.5.2`.
-- [ ] Add AEAD key-committing construction: HKDF-commit before encrypt to prevent invisible salamander attacks (per Grubbs et al.) (~80 SLOC)
-- [ ] Add AES-256-GCM with synthetic IV (AES-GCM-SIV-like nonce-misuse resistance but using standard GCM) (~60 SLOC)
+- [x] Add AEAD key-committing construction: HKDF-commit before encrypt to prevent invisible salamander attacks (per Grubbs et al.) (~80 SLOC) (done 2026-06-02)
+  - **Goal:** `CommittingAead` wrapper providing CMT-1 key-commitment: any manipulation of the encryption key is cryptographically detectable, preventing partitioning oracle and invisible-salamander attacks.
+  - **Design:** New `src/committing.rs`. UtC construction: `prk = hkdf_sha256_extract([0u8;32], key)`; expand `32 + inner.key_len()` bytes with `info = b"oxicrypto/committing/v1"`; `commitment = okm[..32]`, `subkey = okm[32..]`. Sealed output: `commitment ‖ inner.seal_to_vec(subkey, nonce, aad, pt)`. Open: recompute commitment, constant-time compare via `oxicrypto_core::ct_eq`, reject mismatch with `CryptoError::InvalidTag`, then `inner.open_to_vec(subkey, ...)`. Generic over `&dyn Aead`. Add `oxicrypto-kdf` workspace dep (acyclic — kdf does not depend on aead; `default-features = false` to preserve no_std). Document CMT-1 property and Grubbs/Bellare-Hoang reference; note CTX (CMT-4) as a stronger but more complex alternative.
+  - **Files:** `src/committing.rs` (new), `src/lib.rs` (re-export), `Cargo.toml` (add `oxicrypto-kdf` dep).
+  - **Tests:** Round-trip (seal then open yields same plaintext); two-key attack negative (ciphertext sealed under key A fails under key B with `InvalidTag`); commitment-tamper rejected; empty plaintext and empty AAD handled; `inner.key_len() > 32` edge (ensures expand buffer is correct).
+  - **Risk:** New dep on `oxicrypto-kdf`; must verify `no_std` default build. Correct HKDF expand length (`32 + inner.key_len()`) is critical.
+- [x] Add AES-256-GCM with synthetic IV (AES-GCM-SIV-like nonce-misuse resistance but using standard GCM) (~60 SLOC) (done 2026-06-03)
+  - **Goal:** `SyntheticIvAes256Gcm` — a deterministic AEAD that derives its nonce from the message, providing nonce-misuse resistance at the cost of 40 bytes overhead.
+  - **Design:** New `src/gcm_synthetic.rs`. Split key: `K_enc = HKDF-Expand(key, "gcm-synthetic/enc", 32)`, `K_mac = HKDF-Expand(key, "gcm-synthetic/mac", 32)`. Nonce: `nonce = HMAC-SHA256(K_mac, aad || pt)[..12]`. Seal: `AES-256-GCM.seal(K_enc, nonce, aad, pt)`. Output: `nonce(12) || ciphertext || tag(16)`. Implements `Aead`. Uses `oxicrypto-kdf` (already dep). HMAC step: use `hmac`/`sha2` workspace crates directly to avoid adding `oxicrypto-mac` dep. Document: weaker than RFC 8452 AES-GCM-SIV; use `AesGcmSiv256` for stronger guarantees.
+  - **Files:** `src/gcm_synthetic.rs` (new), `src/lib.rs` (re-export), `tests/test_synthetic_iv_gcm.rs` (new).
+  - **Tests:** Round-trip; determinism (same inputs → same nonce+ciphertext); different messages → different nonces; open under wrong key fails.
+  - **Risk:** Security caveat: this construction is weaker than RFC 8452. Must document prominently.
 - [x] (policy) Remove the 6 production `expect()` calls in `src/ccm.rs` per no-unwrap policy (done 2026-05-30 — replaced with fallible `CryptoError::Internal("ccm block invariant")` path)
   - **Goal:** Zero `expect()`/`unwrap()` in `oxicrypto-aead` production code. Stretch: `seal_detached`/`open_detached` for AES-GCM + ChaCha20-Poly1305.
   - **Design:** Replace each `<slice>.try_into().expect("…BLOCK_SIZE…")` in `ccm.rs` with a fallible path mapping to `CryptoError::Internal("ccm block invariant")` via `?` / `ok_or_else`, preserving the existing invariant semantics.
@@ -53,18 +63,33 @@ Eleven AEAD algorithms implemented. Covers AES-128-GCM, AES-256-GCM (NIST SP 800
   - **Risk:** low. The invariants are genuinely true, so the fallible path is dead-safe but satisfies policy without `expect()`.
 
 ## API Improvements
-- [ ] Unify AES-GCM-SIV and XChaCha20 behind the `Aead` trait (currently typed-array inherent methods only, not trait-dispatched)
-- [ ] Add `seal_to_vec` / `open_to_vec` convenience methods that allocate output buffer internally
-- [ ] Add `seal_in_place` method that encrypts plaintext buffer in-place, appending tag, avoiding the copy from pt to ct_out
-- [ ] Add `max_plaintext_len()` method: AES-GCM has a 64 GiB limit; ChaCha20 has a 256 GiB limit per nonce; document and enforce
-- [ ] Add `AeadAlgo` enum variants in facade for AES-GCM-SIV, XChaCha20, AES-CCM, AES-OCB3
-- [~] Support detached tag mode: `seal_detached(key, nonce, aad, pt, ct_out) -> Tag` and `open_detached(key, nonce, aad, ct, tag, pt_out)` for protocols that transmit tags separately (planned 2026-05-30)
+- [x] Unify AES-GCM-SIV and XChaCha20 behind the `Aead` trait (done — both implement `oxicrypto_core::Aead` via full trait dispatch; inherent typed-array methods also present for ergonomic use)
+- [x] Add `seal_to_vec` / `open_to_vec` convenience methods that allocate output buffer internally (done — implemented as default methods on `Aead` trait in `oxicrypto-core/src/traits/aead.rs`)
+- [x] Add `seal_in_place` method that encrypts plaintext buffer in-place, appending tag (done 2026-06-03)
+  - **Goal:** `Aead` trait gains `fn seal_in_place(&self, key, nonce, aad, buf: &mut Vec<u8>) -> Result<(), CryptoError>` — on entry buf=plaintext, on exit buf=ciphertext||tag.
+  - **Design:** Default impl in `oxicrypto-core/src/traits/aead.rs` copies plaintext then seals (one extra alloc). Override for AES-128/256-GCM and ChaCha20-Poly1305 in `oxicrypto-aead/src/lib.rs` using existing private `seal_in_place` free fn (no copy).
+  - **Files:** `oxicrypto-core/src/traits/aead.rs`, `oxicrypto-aead/src/lib.rs`.
+  - **Tests:** `test_seal_in_place_gcm`, `test_seal_in_place_chacha`.
+  - **Risk:** Low; default + override pattern.
+- [x] Add `max_plaintext_len()` method: AES-GCM 64 GiB, ChaCha20 256 GiB per nonce; document and enforce (done 2026-06-02)
+  - **Goal:** `Aead` trait gains `fn max_plaintext_len(&self) -> u64` with per-algorithm RFC-correct limits enforced in `seal`.
+  - **Design:** Add `fn max_plaintext_len(&self) -> u64 { u64::MAX }` default to `Aead` trait in `oxicrypto-core/src/traits/aead.rs`. Override per impl: AES-128/256-GCM = 2^36−32 bytes (RFC 5116); ChaCha20-Poly1305 / XChaCha20-Poly1305 = 2^38−64 bytes (RFC 8439); AES-GCM-SIV = 2^36−32; AES-CCM = per NIST SP 800-38C length limits; OCB3/Deoxys = 2^36−1. Enforce in each `seal` implementation: if `pt.len() as u64 > self.max_plaintext_len()` return `Err(CryptoError::BadInput)`.
+  - **Files:** `oxicrypto-core/src/traits/aead.rs`, `oxicrypto-aead/src/lib.rs` (and other aead impl files).
+  - **Tests:** For AES-GCM: a plaintext exactly at the limit returns `Ok`; one byte over returns `Err(BadInput)`. Same for ChaCha20.
+  - **Risk:** Low. Default prevents breaking existing impls. Limit computation must match RFC-correct byte counts.
+- [x] Add `AeadAlgo` enum variants in facade for AES-GCM-SIV, XChaCha20, AES-CCM, AES-OCB3
+- [x] Support detached tag mode: `seal_detached(key, nonce, aad, pt, ct_out) -> Tag` and `open_detached(key, nonce, aad, ct, tag, pt_out)` for protocols that transmit tags separately (done 2026-06-02)
   - **Goal:** Zero `expect()`/`unwrap()` in `oxicrypto-aead` production code. Stretch: `seal_detached`/`open_detached` for AES-GCM + ChaCha20-Poly1305.
   - **Design:** Replace each `<slice>.try_into().expect("…BLOCK_SIZE…")` in `ccm.rs` with a fallible path mapping to `CryptoError::Internal("ccm block invariant")` via `?` / `ok_or_else`, preserving the existing invariant semantics. Detached mode *(stretch)*: add trait-default or inherent `seal_detached(key,nonce,aad,pt,ct_out) -> Tag` and `open_detached(...,tag,...)` that don't append/strip the tag inline.
   - **Files:** `crates/oxicrypto-aead/src/ccm.rs`; (stretch) `src/lib.rs`.
   - **Tests:** existing CCM round-trip tests must still pass; (stretch) detached round-trip + cross-check detached-tag equals the trailing tag of the combined-mode output.
   - **Risk:** low. The invariants are genuinely true, so the fallible path is dead-safe but satisfies policy without `expect()`.
-- [ ] Add type-safe nonce types: `Nonce12`, `Nonce24` instead of raw `&[u8]` slices
+  - **Refinement (2026-06-02):** Full scope for this run: add `fn seal_detached(&self, key, nonce, aad, pt, ct_out: &mut [u8]) -> Result<Vec<u8>, CryptoError>` and `fn open_detached(&self, key, nonce, aad, ct, tag: &[u8], pt_out: &mut [u8]) -> Result<(), CryptoError>` to the `Aead` trait in `oxicrypto-core/src/traits/aead.rs` with default impls that round-trip through combined mode. Provide zero-copy overrides for AES-128/256-GCM and ChaCha20-Poly1305 that call `encrypt_in_place_detached`/`decrypt_in_place_detached` directly (already used internally). Cross-check: `seal_detached` tag must equal the trailing 16 bytes of `seal` output for the same inputs.
+- [x] Add type-safe nonce types: `Nonce12Bytes`, `Nonce24Bytes` instead of raw `&[u8]` slices (done 2026-06-03)
+  - **Goal:** `NonceBytes<const N: usize>([u8; N])` newtype with `Deref<Target=[u8]>`, `From<[u8;N]>`, `TryFrom<&[u8]>`. Type aliases `Nonce12Bytes` and `Nonce24Bytes` (avoiding collision with existing nonce-sequence `Nonce12`/`Nonce24` aliases).
+  - **Files:** `oxicrypto-aead/src/lib.rs` or new `src/nonce_types.rs`.
+  - **Tests:** `test_noncebytes_from_array`, `test_noncebytes_tryfrm_slice_wrong_len`.
+  - **Risk:** Low — additive newtypes.
 
 ## Testing
 - [x] Add NIST SP 800-38D GCM test vectors: all 18 test cases from Appendix B for AES-128-GCM and AES-256-GCM (done 2026-05-30 — `tests/kat_gcm.rs`: NIST SP 800-38D TC1-4/TC13-16 + CAVP AAD-only vectors, 13 tests)
@@ -88,26 +113,35 @@ Eleven AEAD algorithms implemented. Covers AES-128-GCM, AES-256-GCM (NIST SP 800
   - **Prerequisites:** none (impls exist).
   - **Tests:** each vector drives `seal` (expect exact ciphertext‖tag) and `open` (expect exact plaintext); plus one negative case per family (corrupted tag ⇒ `InvalidTag`).
   - **Risk:** byte-order/endianness transcription slips. Mitigation: vectors are self-checking — a wrong impl OR a wrong vector fails loudly.
-- [ ] Add Wycheproof AEAD test vectors (aes_gcm_test.json, chacha20_poly1305_test.json, aes_gcm_siv_test.json)
-- [ ] Extend existing `kat_aes_gcm_siv.rs` with additional nonce-reuse tests verifying misuse resistance
-- [ ] Extend existing `kat_xchacha20.rs` with large-nonce randomized tests
-- [ ] Add nonce-reuse detection test: same (key, nonce) with different plaintext must produce different ciphertext
-- [ ] Add empty-plaintext / empty-AAD / both-empty edge case tests for all algorithms
-- [ ] Add max-size ciphertext test: verify graceful error on overflow (pt.len() + tag_len > usize::MAX)
-- [ ] Property test: seal(open(ct)) == ct for random inputs
-- [ ] Fuzz test: open() never panics on random ciphertext (returns InvalidTag gracefully)
+- [x] Add Wycheproof AEAD test vectors (aes_gcm_test.json, chacha20_poly1305_test.json, aes_gcm_siv_test.json) (done 2026-06-03)
+  - **Goal:** Add Wycheproof AEAD test vectors (aes_gcm_test.json, chacha20_poly1305_test.json, aes_gcm_siv_test.json). **Files:** `tests/` new test file. **Risk:** Low.
+- [x] Extend existing `kat_aes_gcm_siv.rs` with additional nonce-reuse tests verifying misuse resistance (done 2026-06-03)
+  - **Goal:** Extend existing `kat_aes_gcm_siv.rs` with additional nonce-reuse tests verifying misuse resistance. **Files:** `tests/` new test file. **Risk:** Low.
+- [x] Extend existing `kat_xchacha20.rs` with large-nonce randomized tests (done 2026-06-03)
+  - **Goal:** Extend existing `kat_xchacha20.rs` with large-nonce randomized tests. **Files:** `tests/` new test file. **Risk:** Low.
+- [x] Add nonce-reuse detection test: same (key, nonce) with different plaintext must produce different ciphertext (done 2026-06-03)
+  - **Goal:** Add nonce-reuse detection test: same (key, nonce) with different plaintext must produce different ciphertext. **Files:** `tests/` new test file. **Risk:** Low.
+- [x] Add empty-plaintext / empty-AAD / both-empty edge case tests for all algorithms (done 2026-06-03)
+  - **Goal:** Add empty-plaintext / empty-AAD / both-empty edge case tests for all algorithms. **Files:** `tests/` new test file. **Risk:** Low.
+- [x] Add max-size ciphertext test: verify graceful error on overflow (pt.len() + tag_len > usize::MAX) (done 2026-06-03)
+  - **Goal:** Add max-size ciphertext test: verify graceful error on overflow (pt.len() + tag_len > usize::MAX). **Files:** `tests/` new test file. **Risk:** Low.
+- [x] Property test: seal(open(ct)) == ct for random inputs (done 2026-06-03)
+  - **Goal:** Property test: seal(open(ct)) == ct for random inputs. **Files:** `tests/` new test file. **Risk:** Low.
+- [x] Fuzz test: open() never panics on random ciphertext (returns InvalidTag gracefully) (done 2026-06-03)
+  - **Goal:** Fuzz test: open() never panics on random ciphertext (returns InvalidTag gracefully). **Files:** `tests/` new test file. **Risk:** Low.
 
 ## Performance
-- [ ] Benchmark seal/open for 64 B, 1 KiB, 4 KiB, 64 KiB, 1 MiB payloads per algorithm
-- [ ] Compare AES-GCM-SIV vs AES-GCM throughput (SIV has ~2x overhead due to two passes)
-- [ ] Benchmark XChaCha20 vs ChaCha20 (HChaCha20 subkey derivation overhead)
-- [ ] Profile streaming AEAD chunk sizes for optimal throughput (4 KiB vs 16 KiB vs 64 KiB chunks)
-- [ ] Benchmark in-place vs copy-based seal to quantify memory allocation overhead
-- [ ] Add criterion benchmark for AES-CCM and AES-OCB3 once implemented
+All performance items require the `oxicrypto-bench` crate (DEFERRED to `oxicrypto-bench/TODO.md`):
+- [ ] Benchmark seal/open for 64 B, 1 KiB, 4 KiB, 64 KiB, 1 MiB payloads per algorithm **DEFERRED: requires `oxicrypto-bench` crate**
+- [ ] Compare AES-GCM-SIV vs AES-GCM throughput (SIV has ~2x overhead due to two passes) **DEFERRED: requires `oxicrypto-bench` crate**
+- [ ] Benchmark XChaCha20 vs ChaCha20 (HChaCha20 subkey derivation overhead) **DEFERRED: requires `oxicrypto-bench` crate**
+- [ ] Profile streaming AEAD chunk sizes for optimal throughput (4 KiB vs 16 KiB vs 64 KiB chunks) **DEFERRED: requires `oxicrypto-bench` crate**
+- [ ] Benchmark in-place vs copy-based seal to quantify memory allocation overhead **DEFERRED: requires `oxicrypto-bench` crate**
+- [ ] Add criterion benchmark for AES-CCM and AES-OCB3 once implemented **DEFERRED: requires `oxicrypto-bench` crate**
 
 ## Integration
-- [ ] Wire `NonceSequence` to `oxicrypto-rand` for automatic random nonce generation
-- [ ] Ensure `oxicrypto-kdf` HKDF can be used for AEAD key derivation (HKDF-Expand -> AEAD key)
-- [ ] Provide AEAD algorithm negotiation for OxiTLS: `negotiate_aead(cipher_suite) -> Box<dyn Aead>`
-- [ ] Ensure `oxicrypto-bench` includes AES-GCM-SIV and XChaCha20 in comparative benchmarks
-- [ ] Coordinate with `oxicrypto-pq` for hybrid encryption: ML-KEM shared secret -> HKDF -> AEAD key
+- [x] Wire `NonceSequence` to `oxicrypto-rand` for automatic random nonce generation (done 2026-06-03 — `NonceSequence::with_random_prefix()` added behind the `rand` feature; generates a cryptographically-secure random prefix via `OxiRng`; 3 tests in `nonce_seq.rs`)
+- [x] Ensure `oxicrypto-kdf` HKDF can be used for AEAD key derivation (HKDF-Expand -> AEAD key) (done 2026-06-03 — `tests/test_hkdf_aead_integration.rs` validates the pattern: shared-secret → HKDF-SHA-256 → AES-128/256-GCM / ChaCha20-Poly1305 / XChaCha20-Poly1305; 7 tests; documented in `lib.rs` crate-level doc)
+- [ ] Provide AEAD algorithm negotiation for OxiTLS: `negotiate_aead(cipher_suite) -> Box<dyn Aead>` (DEFERRED — requires OxiTLS crate coordination)
+- [ ] Ensure `oxicrypto-bench` includes AES-GCM-SIV and XChaCha20 in comparative benchmarks (DEFERRED — requires `oxicrypto-bench` crate update)
+- [ ] Coordinate with `oxicrypto-pq` for hybrid encryption: ML-KEM shared secret -> HKDF -> AEAD key (DEFERRED — requires `oxicrypto-pq` integration)

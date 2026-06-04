@@ -3,7 +3,10 @@ use alloc::vec::Vec;
 use crate::{CryptoError, KeyPair, SecretVec};
 
 /// Asymmetric signing operation.
-pub trait Signer: Send + Sync {
+///
+/// When the `debug` Cargo feature is enabled this trait gains `Debug` as a
+/// supertrait, enabling `Box<dyn Signer>` to be formatted with `{:?}`.
+pub trait Signer: Send + Sync + crate::traits::MaybeDebug {
     /// Human-readable algorithm identifier (e.g. `"Ed25519"`).
     #[must_use]
     fn name(&self) -> &'static str;
@@ -19,7 +22,10 @@ pub trait Signer: Send + Sync {
 }
 
 /// Asymmetric signature verification.
-pub trait Verifier: Send + Sync {
+///
+/// When the `debug` Cargo feature is enabled this trait gains `Debug` as a
+/// supertrait, enabling `Box<dyn Verifier>` to be formatted with `{:?}`.
+pub trait Verifier: Send + Sync + crate::traits::MaybeDebug {
     /// Human-readable algorithm identifier (e.g. `"Ed25519"`).
     #[must_use]
     fn name(&self) -> &'static str;
@@ -31,7 +37,10 @@ pub trait Verifier: Send + Sync {
 }
 
 /// Key pair generator for asymmetric algorithms.
-pub trait KeyGenerator: Send + Sync {
+///
+/// When the `debug` Cargo feature is enabled this trait gains `Debug` as a
+/// supertrait, enabling `Box<dyn KeyGenerator>` to be formatted with `{:?}`.
+pub trait KeyGenerator: Send + Sync + crate::traits::MaybeDebug {
     /// Human-readable algorithm identifier (e.g. `"Ed25519"`).
     #[must_use]
     fn name(&self) -> &'static str;

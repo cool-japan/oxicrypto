@@ -102,6 +102,12 @@ impl SigningKey44 {
             .map_err(|_| CryptoError::Sign)
     }
 
+    /// Return the verifying (public) key corresponding to this signing key.
+    #[must_use]
+    pub fn verifying_key(&self) -> VerifyingKey44 {
+        VerifyingKey44(self.0.verifying_key().clone())
+    }
+
     /// Serialize the signing key to a 32-byte seed (secret key material).
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -217,6 +223,12 @@ impl SigningKey65 {
             .map_err(|_| CryptoError::Sign)
     }
 
+    /// Return the verifying (public) key corresponding to this signing key.
+    #[must_use]
+    pub fn verifying_key(&self) -> VerifyingKey65 {
+        VerifyingKey65(self.0.verifying_key().clone())
+    }
+
     /// Serialize the signing key to a 32-byte seed (secret key material).
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -330,6 +342,12 @@ impl SigningKey87 {
             .try_sign(msg)
             .map(Signature87)
             .map_err(|_| CryptoError::Sign)
+    }
+
+    /// Return the verifying (public) key corresponding to this signing key.
+    #[must_use]
+    pub fn verifying_key(&self) -> VerifyingKey87 {
+        VerifyingKey87(self.0.verifying_key().clone())
     }
 
     /// Serialize the signing key to a 32-byte seed (secret key material).

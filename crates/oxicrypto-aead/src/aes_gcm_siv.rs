@@ -14,6 +14,9 @@ use aead::{AeadInPlace, KeyInit};
 use aes_gcm_siv::{Aes128GcmSiv, Aes256GcmSiv};
 use oxicrypto_core::{Aead, CryptoError};
 
+/// AES-GCM-SIV max plaintext: 2^36 − 32 bytes (RFC 8452 §6 / RFC 5116 §5.1).
+const AES_GCM_SIV_MAX_PT: u64 = (1u64 << 36) - 32;
+
 fn seal_siv<C: AeadInPlace + KeyInit>(
     key: &[u8],
     key_len: usize,
@@ -24,6 +27,9 @@ fn seal_siv<C: AeadInPlace + KeyInit>(
 ) -> Result<usize, CryptoError> {
     const TAG_LEN: usize = 16;
     const NONCE_LEN: usize = 12;
+    if pt.len() as u64 > AES_GCM_SIV_MAX_PT {
+        return Err(CryptoError::BadInput);
+    }
     if key.len() != key_len {
         return Err(CryptoError::InvalidKey);
     }
@@ -98,6 +104,10 @@ impl Aead for AesGcmSiv128 {
     fn tag_len(&self) -> usize {
         16
     }
+    /// RFC 8452 §6 / RFC 5116 §5.1: max plaintext = 2^36 − 32 bytes.
+    fn max_plaintext_len(&self) -> u64 {
+        AES_GCM_SIV_MAX_PT
+    }
     fn seal(
         &self,
         key: &[u8],
@@ -169,6 +179,10 @@ impl Aead for AesGcmSiv256 {
     }
     fn tag_len(&self) -> usize {
         16
+    }
+    /// RFC 8452 §6 / RFC 5116 §5.1: max plaintext = 2^36 − 32 bytes.
+    fn max_plaintext_len(&self) -> u64 {
+        AES_GCM_SIV_MAX_PT
     }
     fn seal(
         &self,

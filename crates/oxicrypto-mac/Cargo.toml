@@ -26,3 +26,7 @@ cmac.workspace = true
 aes-cipher05 = { workspace = true }
 tiny-keccak.workspace = true
 blake3.workspace = true
+
+[dev-dependencies]
+rand_chacha.workspace = true
+rand_core.workspace = true

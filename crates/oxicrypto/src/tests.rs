@@ -617,6 +617,146 @@ fn kdf_balloon_derives_variable_length() {
     }
 }
 
+// ── New hash variants (Sha512_256, Blake2b256, Blake2b512, Blake2s256) ────
+
+#[test]
+fn hash_sha512_256_produces_output() {
+    let out = hash_impl(HashAlgo::Sha512_256)
+        .hash_to_vec(b"")
+        .expect("Sha512_256 hash failed");
+    assert!(!out.is_empty(), "Sha512_256 output must not be empty");
+    assert_eq!(out.len(), 32, "Sha512_256 output must be 32 bytes");
+}
+
+#[test]
+fn hash_blake2b256_produces_output() {
+    let out = hash_impl(HashAlgo::Blake2b256)
+        .hash_to_vec(b"")
+        .expect("Blake2b256 hash failed");
+    assert!(!out.is_empty(), "Blake2b256 output must not be empty");
+    assert_eq!(out.len(), 32, "Blake2b256 output must be 32 bytes");
+}
+
+#[test]
+fn hash_blake2b512_produces_output() {
+    let out = hash_impl(HashAlgo::Blake2b512)
+        .hash_to_vec(b"")
+        .expect("Blake2b512 hash failed");
+    assert!(!out.is_empty(), "Blake2b512 output must not be empty");
+    assert_eq!(out.len(), 64, "Blake2b512 output must be 64 bytes");
+}
+
+#[test]
+fn hash_blake2s256_produces_output() {
+    let out = hash_impl(HashAlgo::Blake2s256)
+        .hash_to_vec(b"")
+        .expect("Blake2s256 hash failed");
+    assert!(!out.is_empty(), "Blake2s256 output must not be empty");
+    assert_eq!(out.len(), 32, "Blake2s256 output must be 32 bytes");
+}
+
+// ── RsaPssSha384 and RsaPssSha512 sign/verify ─────────────────────────────
+
+#[test]
+fn rsa_pss_sha384_facade_sign_verify() {
+    let (sk_der, pk_der) =
+        oxicrypto_sig::rsa_generate_keypair(2048).expect("RSA-2048 key generation failed");
+    let msg = b"facade RSA-PSS-SHA384 test";
+    let signer = signer_impl(SigAlgo::RsaPssSha384);
+    let verifier = verifier_impl(SigAlgo::RsaPssSha384);
+    let mut sig = vec![0u8; signer.signature_len()];
+    let n = signer
+        .sign(&sk_der, msg, &mut sig)
+        .expect("RSA-PSS-SHA384 sign failed");
+    verifier
+        .verify(&pk_der, msg, &sig[..n])
+        .expect("RSA-PSS-SHA384 verify failed");
+}
+
+#[test]
+fn rsa_pss_sha512_facade_sign_verify() {
+    let (sk_der, pk_der) =
+        oxicrypto_sig::rsa_generate_keypair(2048).expect("RSA-2048 key generation failed");
+    let msg = b"facade RSA-PSS-SHA512 test";
+    let signer = signer_impl(SigAlgo::RsaPssSha512);
+    let verifier = verifier_impl(SigAlgo::RsaPssSha512);
+    let mut sig = vec![0u8; signer.signature_len()];
+    let n = signer
+        .sign(&sk_der, msg, &mut sig)
+        .expect("RSA-PSS-SHA512 sign failed");
+    verifier
+        .verify(&pk_der, msg, &sig[..n])
+        .expect("RSA-PSS-SHA512 verify failed");
+}
+
+// ── X448 key exchange ─────────────────────────────────────────────────────
+
+#[test]
+fn x448_facade_agree() {
+    use rand_core::SeedableRng;
+    let mut rng = rand_chacha::ChaCha20Rng::from_seed([0x42u8; 32]);
+    let (alice_sk, alice_pk) =
+        oxicrypto_kex::x448_generate_keypair(&mut rng).expect("X448 alice keygen failed");
+    let (bob_sk, bob_pk) =
+        oxicrypto_kex::x448_generate_keypair(&mut rng).expect("X448 bob keygen failed");
+
+    let kex = kex_impl(KexAlgo::X448);
+    assert_eq!(kex.name(), "X448");
+    assert_eq!(kex.scalar_len(), 56);
+
+    let mut s1 = [0u8; 56];
+    let mut s2 = [0u8; 56];
+    kex.agree(alice_sk.as_bytes(), &bob_pk, &mut s1)
+        .expect("X448 agree alice→bob failed");
+    kex.agree(bob_sk.as_bytes(), &alice_pk, &mut s2)
+        .expect("X448 agree bob→alice failed");
+    assert_eq!(s1, s2, "X448 shared secrets must match");
+}
+
+// ── available_algorithms completeness ─────────────────────────────────────
+
+#[test]
+fn available_algorithms_contains_new_algo_ids() {
+    let ids = available_algorithms();
+
+    assert!(
+        ids.contains(&AlgorithmId::Sha512_256),
+        "Sha512_256 must be in available_algorithms"
+    );
+    assert!(
+        ids.contains(&AlgorithmId::Blake2b256),
+        "Blake2b256 must be in available_algorithms"
+    );
+    assert!(
+        ids.contains(&AlgorithmId::Blake2b512),
+        "Blake2b512 must be in available_algorithms"
+    );
+    assert!(
+        ids.contains(&AlgorithmId::Blake2s256),
+        "Blake2s256 must be in available_algorithms"
+    );
+    assert!(
+        ids.contains(&AlgorithmId::X448),
+        "X448 must be in available_algorithms"
+    );
+    assert!(
+        ids.contains(&AlgorithmId::Aes128Ocb3),
+        "Aes128Ocb3 must be in available_algorithms"
+    );
+    assert!(
+        ids.contains(&AlgorithmId::Aes256Ocb3),
+        "Aes256Ocb3 must be in available_algorithms"
+    );
+    assert!(
+        ids.contains(&AlgorithmId::RsaPssSha384),
+        "RsaPssSha384 must be in available_algorithms"
+    );
+    assert!(
+        ids.contains(&AlgorithmId::RsaPssSha512),
+        "RsaPssSha512 must be in available_algorithms"
+    );
+}
+
 // ── Unknown algo parse error ──────────────────────────────────────────────
 
 #[test]
@@ -933,4 +1073,77 @@ fn hpke_facade_reexport_round_trip() {
         .open_base(&enc, sk_r.as_bytes(), info, b"aad", &ct)
         .expect("open_base");
     assert_eq!(pt, b"facade secret");
+}
+
+// ── PQ-preview: XWing768 and HybridKem1024P384 ────────────────────────────
+
+#[cfg(feature = "pq-preview")]
+#[test]
+fn pq_kem_xwing768_generate_produces_keys() {
+    let (dk_bytes, ek_bytes) =
+        crate::pq_kem_generate(PqKemAlgo::XWing768).expect("XWing768 key generation failed");
+    assert!(!dk_bytes.is_empty(), "XWing768 dk must not be empty");
+    assert!(!ek_bytes.is_empty(), "XWing768 ek must not be empty");
+}
+
+#[cfg(feature = "pq-preview")]
+#[test]
+fn pq_kem_xwing768_encap_decap_round_trip() {
+    use oxicrypto_core::Kem;
+    let (dk, ek) = oxicrypto_pq::XWing768::kem_generate().expect("XWing768 kem_generate failed");
+    let (ct, ss_enc) =
+        oxicrypto_pq::XWing768::kem_encapsulate(&ek).expect("XWing768 encapsulate failed");
+    let ss_dec =
+        oxicrypto_pq::XWing768::kem_decapsulate(&dk, &ct).expect("XWing768 decapsulate failed");
+    assert_eq!(
+        ss_enc.as_slice(),
+        ss_dec.as_slice(),
+        "XWing768 encap/decap shared secrets must match"
+    );
+}
+
+#[cfg(feature = "pq-preview")]
+#[test]
+fn pq_kem_hybrid1024p384_generate_produces_keys() {
+    let (dk_bytes, ek_bytes) = crate::pq_kem_generate(PqKemAlgo::HybridKem1024P384)
+        .expect("HybridKem1024P384 key generation failed");
+    assert!(
+        !dk_bytes.is_empty(),
+        "HybridKem1024P384 dk must not be empty"
+    );
+    assert!(
+        !ek_bytes.is_empty(),
+        "HybridKem1024P384 ek must not be empty"
+    );
+}
+
+#[cfg(feature = "pq-preview")]
+#[test]
+fn pq_kem_hybrid1024p384_encap_decap_round_trip() {
+    use oxicrypto_core::Kem;
+    let (dk, ek) = oxicrypto_pq::HybridKem1024P384::kem_generate()
+        .expect("HybridKem1024P384 kem_generate failed");
+    let (ct, ss_enc) = oxicrypto_pq::HybridKem1024P384::kem_encapsulate(&ek)
+        .expect("HybridKem1024P384 encapsulate failed");
+    let ss_dec = oxicrypto_pq::HybridKem1024P384::kem_decapsulate(&dk, &ct)
+        .expect("HybridKem1024P384 decapsulate failed");
+    assert_eq!(
+        ss_enc.as_slice(),
+        ss_dec.as_slice(),
+        "HybridKem1024P384 encap/decap shared secrets must match"
+    );
+}
+
+#[cfg(feature = "pq-preview")]
+#[test]
+fn available_algorithms_contains_hybrid_kem_ids() {
+    let ids = available_algorithms();
+    assert!(
+        ids.contains(&AlgorithmId::XWing768X25519),
+        "XWing768X25519 must be in available_algorithms"
+    );
+    assert!(
+        ids.contains(&AlgorithmId::HybridKem1024P384),
+        "HybridKem1024P384 must be in available_algorithms"
+    );
 }

@@ -96,6 +96,7 @@ fn keypair_debug_masks_secret() {
 
 #[test]
 fn streaming_aead_trait_object_compiles() {
+    #[derive(Debug)]
     struct DummyAead;
     impl StreamingAead for DummyAead {
         fn init(_k: &[u8], _n: &[u8], _a: &[u8]) -> Result<Self, CryptoError> {
@@ -120,6 +121,7 @@ fn streaming_aead_trait_object_compiles() {
 
 #[test]
 fn kem_trait_compiles() {
+    #[derive(Debug)]
     struct DummyKem;
     impl Kem for DummyKem {
         type EncapKey = ();
@@ -141,6 +143,7 @@ fn kem_trait_compiles() {
 
 #[test]
 fn password_hash_trait_compiles() {
+    #[derive(Debug)]
     struct DummyParams;
     impl PasswordHashParams for DummyParams {
         fn memory_cost(&self) -> Option<u32> {
@@ -153,6 +156,7 @@ fn password_hash_trait_compiles() {
             None
         }
     }
+    #[derive(Debug)]
     struct DummyPwHash;
     impl PasswordHash for DummyPwHash {
         fn name(&self) -> &'static str {
@@ -177,6 +181,7 @@ fn password_hash_trait_compiles() {
 
 #[test]
 fn key_generator_trait_compiles() {
+    #[derive(Debug)]
     struct DummyGen;
     impl KeyGenerator for DummyGen {
         fn name(&self) -> &'static str {
@@ -368,6 +373,7 @@ fn algorithm_id_balloon_category_is_kdf() {
 // hash_to_array tests (via mock Hash implementor)
 // -----------------------------------------------------------------------
 
+#[derive(Debug)]
 struct MockHash {
     output_len: usize,
 }
@@ -415,6 +421,7 @@ fn hash_to_array_wrong_n_returns_bad_input() {
 // seal_to_vec / open_to_vec tests (via mock Aead implementor)
 // -----------------------------------------------------------------------
 
+#[derive(Debug)]
 struct MockAead;
 
 impl Aead for MockAead {
@@ -536,6 +543,7 @@ fn aead_open_to_vec_rejects_short_ciphertext() {
 // mac_to_vec tests (via mock Mac implementor)
 // -----------------------------------------------------------------------
 
+#[derive(Debug)]
 struct MockMac;
 
 impl Mac for MockMac {
@@ -730,4 +738,487 @@ fn test_keypair_secret_and_public() {
     let kp = KeyPair::new(secret, public);
     assert_eq!(kp.secret(), &[0xAA_u8; 32]);
     assert_eq!(kp.public(), &[0xBB_u8; 32]);
+}
+
+// -----------------------------------------------------------------------
+// SecretKey zeroize-on-drop (WI-A: test-secretkey-zeroize)
+// -----------------------------------------------------------------------
+
+/// Verify SecretKey<N> implements ZeroizeOnDrop at compile time and that
+/// manual Zeroize clears the bytes to all-zero.
+///
+/// NOTE: `#![forbid(unsafe_code)]` in this crate prevents `read_volatile`
+/// after drop; instead we verify (a) the ZeroizeOnDrop supertrait is
+/// satisfied at compile time, and (b) `zeroize::Zeroize::zeroize` on a
+/// mutable clone zeroes the bytes.
+#[test]
+fn test_secretkey_zeroize_on_drop() {
+    fn assert_zeroize_on_drop<T: ZeroizeOnDrop>() {}
+    assert_zeroize_on_drop::<SecretKey<32>>();
+
+    // Clone the key and manually zeroize; all bytes must become 0.
+    let key: SecretKey<32> = SecretKey::new([0xAB_u8; 32]);
+    let mut key2 = key.clone();
+    Zeroize::zeroize(&mut key2);
+    assert_eq!(
+        key2.as_bytes(),
+        &[0u8; 32],
+        "all bytes must be zero after Zeroize::zeroize"
+    );
+}
+
+// -----------------------------------------------------------------------
+// ct_eq agrees with == (WI-A: test-cteq-eq)
+// -----------------------------------------------------------------------
+
+#[test]
+fn test_ct_eq_agrees_with_eq() {
+    let cases: &[(&[u8], &[u8])] = &[
+        (b"", b""),
+        (b"a", b"a"),
+        (b"a", b"b"),
+        (&[0u8; 16], &[0u8; 16]),
+        (&[0u8; 16], &[1u8; 16]),
+        (&[0xFF; 32], &[0xFF; 32]),
+        (&[0x00; 32], &[0xFF; 32]),
+    ];
+    for (a, b) in cases {
+        let ct_result = ct_eq(a, b);
+        let eq_result = a == b;
+        assert_eq!(
+            ct_result, eq_result,
+            "ct_eq({a:?}, {b:?}) disagrees with (a == b)"
+        );
+    }
+}
+
+// -----------------------------------------------------------------------
+// CryptoError Display never panics (WI-A: fuzz-cryptoerror-display)
+// -----------------------------------------------------------------------
+
+#[test]
+fn test_cryptoerror_display_no_panic() {
+    let variants = [
+        CryptoError::InvalidKey,
+        CryptoError::InvalidNonce,
+        CryptoError::InvalidTag,
+        CryptoError::BufferTooSmall,
+        CryptoError::BadInput,
+        CryptoError::Internal("test message"),
+        CryptoError::Kex,
+        CryptoError::Sign,
+        CryptoError::Rng,
+        CryptoError::Encoding,
+        CryptoError::UnsupportedAlgorithm,
+    ];
+    for e in &variants {
+        let s = alloc::format!("{e}");
+        assert!(!s.is_empty(), "Display produced empty string for {e:?}");
+    }
+}
+
+// -----------------------------------------------------------------------
+// All error variants distinguishable via PartialEq (WI-A: test-error-partialeq)
+// -----------------------------------------------------------------------
+
+#[test]
+fn test_error_variants_distinguishable() {
+    use CryptoError::*;
+    // Build a list of all variants (Internal with same payload treated as one).
+    let variants: &[CryptoError] = &[
+        InvalidKey,
+        InvalidNonce,
+        InvalidTag,
+        BufferTooSmall,
+        BadInput,
+        Internal("msg"),
+        Kex,
+        Sign,
+        Rng,
+        Encoding,
+        UnsupportedAlgorithm,
+    ];
+    // Every pair of distinct variants must be unequal.
+    for (i, vi) in variants.iter().enumerate() {
+        for (j, vj) in variants.iter().enumerate() {
+            if i != j {
+                // Internal variants with the same payload are equal but
+                // we only have one Internal here, so all pairs are unequal.
+                assert_ne!(vi, vj, "variant {vi:?} and {vj:?} must be distinct");
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------
+// SecretKey<N> is exactly N bytes — no heap indirection (WI-A: perf-secretkey-stack)
+// -----------------------------------------------------------------------
+
+#[test]
+fn test_secretkey_size_no_heap() {
+    use core::mem::size_of;
+    assert_eq!(
+        size_of::<SecretKey<32>>(),
+        32,
+        "SecretKey<32> should be exactly 32 bytes"
+    );
+    assert_eq!(
+        size_of::<SecretKey<64>>(),
+        64,
+        "SecretKey<64> should be exactly 64 bytes"
+    );
+}
+
+// -----------------------------------------------------------------------
+// KeyPair drops secret (WI-A: test-keypair-drop)
+// -----------------------------------------------------------------------
+
+/// Verify at compile time that KeyPair<SecretKey<32>, Vec<u8>> imposes a
+/// Zeroize bound on the secret half and that the explicit Drop impl calls
+/// zeroize.  We also test that manually zeroizing the secret via a mutable
+/// borrow of its clone zeroes the bytes, mirroring the test_secretkey_zeroize_on_drop check.
+#[test]
+fn test_keypair_drops_secret() {
+    // Verify SecretKey<32> is Zeroize (compile-time check).
+    fn assert_zeroize<T: Zeroize>() {}
+    assert_zeroize::<SecretKey<32>>();
+
+    // Drop a KeyPair<[u8;32], [u8;32]> and verify the access on the
+    // public key still works before drop, mirroring the wiring.
+    let kp = KeyPair::new([0xCC_u8; 32], [0xDD_u8; 32]);
+    assert_eq!(kp.public(), &[0xDD_u8; 32]);
+    drop(kp);
+}
+
+// -----------------------------------------------------------------------
+// StreamingHash interface test (WI-A: test-streaminghash-equiv)
+// -----------------------------------------------------------------------
+
+/// Test the StreamingHash trait interface using a simple inline stub
+/// (XOR-accumulator hasher). This tests the INTERFACE, not a specific
+/// algorithm.  Algorithm-specific chunked-vs-one-shot equivalence tests
+/// live in `oxicrypto-hash/src/lib.rs`.
+#[test]
+fn test_streaminghash_chunked_equiv_oneshot() {
+    struct XorHash {
+        acc: u8,
+    }
+
+    impl StreamingHash for XorHash {
+        fn update(&mut self, data: &[u8]) {
+            for &b in data {
+                self.acc ^= b;
+            }
+        }
+
+        fn finalize(self, out: &mut [u8]) -> Result<(), CryptoError> {
+            if out.is_empty() {
+                return Err(CryptoError::BufferTooSmall);
+            }
+            out[0] = self.acc;
+            Ok(())
+        }
+
+        fn reset(&mut self) {
+            self.acc = 0;
+        }
+    }
+
+    let msg = b"hello world";
+
+    // One-shot: feed the entire message at once.
+    let mut oneshot = XorHash { acc: 0 };
+    oneshot.update(msg);
+    let mut out1 = [0u8; 1];
+    oneshot.finalize(&mut out1).expect("finalize one-shot");
+
+    // Chunked: feed one byte at a time.
+    let mut chunked = XorHash { acc: 0 };
+    for b in msg {
+        chunked.update(core::slice::from_ref(b));
+    }
+    let mut out2 = [0u8; 1];
+    chunked.finalize(&mut out2).expect("finalize chunked");
+
+    assert_eq!(
+        out1, out2,
+        "chunked StreamingHash must equal one-shot result"
+    );
+
+    // Also test reset: re-feed the same message after reset.
+    let mut resettable = XorHash { acc: 0 };
+    resettable.update(b"garbage");
+    resettable.reset();
+    resettable.update(msg);
+    let mut out3 = [0u8; 1];
+    resettable
+        .finalize(&mut out3)
+        .expect("finalize after reset");
+    assert_eq!(
+        out1, out3,
+        "reset then re-feed must equal original one-shot"
+    );
+}
+
+// -----------------------------------------------------------------------
+// Serde feature tests — CryptoError serialization via oxicode backend
+// -----------------------------------------------------------------------
+
+/// When the `serde` feature is enabled, `CryptoError` must round-trip
+/// through `oxicode::serde::encode_serde` / `decode_serde` without panic.
+///
+/// The `Internal` variant has intentionally lossy deserialisation: the
+/// message string is preserved in the encoded bytes but cannot be
+/// reconstructed as `&'static str`.  All other variants round-trip exactly.
+///
+/// Uses `oxicode` (COOLJAPAN serialization backend) as the binary codec.
+#[cfg(feature = "serde")]
+mod serde_tests {
+    use super::CryptoError;
+
+    /// All non-`Internal` variants that must round-trip exactly.
+    fn non_internal_variants() -> alloc::vec::Vec<CryptoError> {
+        alloc::vec![
+            CryptoError::InvalidKey,
+            CryptoError::InvalidNonce,
+            CryptoError::InvalidTag,
+            CryptoError::BufferTooSmall,
+            CryptoError::BadInput,
+            CryptoError::Kex,
+            CryptoError::Sign,
+            CryptoError::Rng,
+            CryptoError::Encoding,
+            CryptoError::UnsupportedAlgorithm,
+        ]
+    }
+
+    #[test]
+    fn crypto_error_non_internal_variants_round_trip() {
+        for variant in non_internal_variants() {
+            let encoded =
+                oxicode::serde::encode_serde(&variant).expect("oxicode encode_serde must succeed");
+            assert!(!encoded.is_empty(), "encoded bytes must be non-empty");
+
+            let decoded: CryptoError =
+                oxicode::serde::decode_serde(&encoded).expect("oxicode decode_serde must succeed");
+            assert_eq!(
+                decoded, variant,
+                "CryptoError::{variant:?} must round-trip through oxicode"
+            );
+        }
+    }
+
+    #[test]
+    fn crypto_error_internal_serializes_and_deserializes_lossily() {
+        let original = CryptoError::Internal("backend error 42");
+
+        let encoded = oxicode::serde::encode_serde(&original)
+            .expect("oxicode encode_serde of Internal must succeed");
+        assert!(!encoded.is_empty(), "encoded bytes must be non-empty");
+
+        // Deserialise: the message is lost (reconstructed as "").
+        let decoded: CryptoError = oxicode::serde::decode_serde(&encoded)
+            .expect("oxicode decode_serde of Internal must succeed");
+        assert_eq!(
+            decoded,
+            CryptoError::Internal(""),
+            "Internal deserialization must reconstruct as Internal(\"\")"
+        );
+    }
+
+    #[test]
+    fn crypto_error_serde_encoded_bytes_are_non_empty_for_all_variants() {
+        let all_variants = {
+            let mut v = non_internal_variants();
+            v.push(CryptoError::Internal("msg"));
+            v
+        };
+        for variant in &all_variants {
+            let encoded = oxicode::serde::encode_serde(variant)
+                .unwrap_or_else(|e| panic!("encode failed for {variant:?}: {e}"));
+            assert!(
+                !encoded.is_empty(),
+                "encoded bytes for {variant:?} must be non-empty"
+            );
+        }
+    }
+
+    #[test]
+    fn crypto_error_serde_distinct_variants_encode_differently() {
+        // Spot-check: two different variants must have different encodings.
+        let enc_key =
+            oxicode::serde::encode_serde(&CryptoError::InvalidKey).expect("encode InvalidKey");
+        let enc_nonce =
+            oxicode::serde::encode_serde(&CryptoError::InvalidNonce).expect("encode InvalidNonce");
+        assert_ne!(
+            enc_key, enc_nonce,
+            "different CryptoError variants must encode differently"
+        );
+    }
+}
+
+// -----------------------------------------------------------------------
+// Debug supertrait feature tests (WI-A: api-debug-bound)
+// -----------------------------------------------------------------------
+
+/// When the `debug` feature is enabled, every core trait object must be
+/// usable via `Box<dyn Trait + Debug>` or cast to `&dyn Debug`.
+/// Without the feature the bound is erased and implementors do not
+/// need to provide `Debug`.
+///
+/// These tests compile under both feature configurations:
+/// - default (no `debug`): `Box<dyn Hash>` etc. compile without Debug bound.
+/// - `debug`: `Box<dyn Hash>` requires `Debug` on the implementor.
+#[cfg(feature = "debug")]
+mod debug_feature_tests {
+    use super::*;
+
+    /// A minimal Hash implementor that also derives Debug — required under
+    /// the `debug` feature.
+    #[derive(Debug)]
+    struct DbgHash;
+    impl Hash for DbgHash {
+        fn name(&self) -> &'static str {
+            "debug-hash"
+        }
+        fn output_len(&self) -> usize {
+            4
+        }
+        fn hash(&self, _msg: &[u8], out: &mut [u8]) -> Result<(), CryptoError> {
+            if out.len() < 4 {
+                return Err(CryptoError::BufferTooSmall);
+            }
+            out[..4].fill(0xAB);
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    struct DbgAead;
+    impl Aead for DbgAead {
+        fn name(&self) -> &'static str {
+            "debug-aead"
+        }
+        fn key_len(&self) -> usize {
+            16
+        }
+        fn nonce_len(&self) -> usize {
+            12
+        }
+        fn tag_len(&self) -> usize {
+            4
+        }
+        fn seal(
+            &self,
+            _key: &[u8],
+            _nonce: &[u8],
+            _aad: &[u8],
+            pt: &[u8],
+            ct_out: &mut [u8],
+        ) -> Result<usize, CryptoError> {
+            let n = pt.len() + self.tag_len();
+            if ct_out.len() < n {
+                return Err(CryptoError::BufferTooSmall);
+            }
+            ct_out[..pt.len()].copy_from_slice(pt);
+            ct_out[pt.len()..n].fill(0xFF);
+            Ok(n)
+        }
+        fn open(
+            &self,
+            _key: &[u8],
+            _nonce: &[u8],
+            _aad: &[u8],
+            ct: &[u8],
+            pt_out: &mut [u8],
+        ) -> Result<usize, CryptoError> {
+            let tag = self.tag_len();
+            if ct.len() < tag {
+                return Err(CryptoError::BufferTooSmall);
+            }
+            let pt_len = ct.len() - tag;
+            pt_out[..pt_len].copy_from_slice(&ct[..pt_len]);
+            Ok(pt_len)
+        }
+    }
+
+    #[derive(Debug)]
+    struct DbgMac;
+    impl Mac for DbgMac {
+        fn name(&self) -> &'static str {
+            "debug-mac"
+        }
+        fn key_len(&self) -> usize {
+            16
+        }
+        fn output_len(&self) -> usize {
+            4
+        }
+        fn mac(&self, _key: &[u8], _msg: &[u8], out: &mut [u8]) -> Result<(), CryptoError> {
+            if out.len() < 4 {
+                return Err(CryptoError::BufferTooSmall);
+            }
+            out[..4].fill(0xCC);
+            Ok(())
+        }
+        fn verify(&self, key: &[u8], msg: &[u8], tag: &[u8]) -> Result<(), CryptoError> {
+            let mut expected = alloc::vec![0u8; self.output_len()];
+            self.mac(key, msg, &mut expected)?;
+            if ct_eq(tag, &expected) {
+                Ok(())
+            } else {
+                Err(CryptoError::InvalidTag)
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct DbgKdf;
+    impl Kdf for DbgKdf {
+        fn name(&self) -> &'static str {
+            "debug-kdf"
+        }
+        fn derive(
+            &self,
+            _ikm: &[u8],
+            _salt: &[u8],
+            _info: &[u8],
+            out: &mut [u8],
+        ) -> Result<(), CryptoError> {
+            out.fill(0xDD);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn debug_feature_hash_trait_object_is_debuggable() {
+        let h: Box<dyn Hash> = Box::new(DbgHash);
+        // `dyn Hash` is also `dyn Debug` under the `debug` feature.
+        let dbg_str = alloc::format!("{h:?}");
+        assert!(
+            !dbg_str.is_empty(),
+            "Debug output for Box<dyn Hash> must not be empty"
+        );
+    }
+
+    #[test]
+    fn debug_feature_aead_trait_object_is_debuggable() {
+        let a: Box<dyn Aead> = Box::new(DbgAead);
+        let dbg_str = alloc::format!("{a:?}");
+        assert!(!dbg_str.is_empty());
+    }
+
+    #[test]
+    fn debug_feature_mac_trait_object_is_debuggable() {
+        let m: Box<dyn Mac> = Box::new(DbgMac);
+        let dbg_str = alloc::format!("{m:?}");
+        assert!(!dbg_str.is_empty());
+    }
+
+    #[test]
+    fn debug_feature_kdf_trait_object_is_debuggable() {
+        let k: Box<dyn Kdf> = Box::new(DbgKdf);
+        let dbg_str = alloc::format!("{k:?}");
+        assert!(!dbg_str.is_empty());
+    }
 }

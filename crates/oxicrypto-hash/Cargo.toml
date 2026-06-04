@@ -13,6 +13,17 @@ categories = ["cryptography"]
 [features]
 default = []
 std = ["blake3/std", "oxicrypto-core/std"]
+## Opt-in to a fully alloc-free API surface.
+##
+## When `no_std` is enabled:
+## - `hash_to_vec`, `blake3_xof`, `parallel_hash*_xof` are NOT available
+##   (they require heap allocation via `extern crate alloc`).
+## - Use the inherent `hash_fixed::<N>()` methods on concrete hash types
+##   (e.g. `Sha256::hash_fixed`, `Blake3::hash_fixed`) instead, which write
+##   into a fixed-size `[u8; N]` on the stack without any heap allocation.
+## - The `Hash::hash_to_array::<N>()` method from `oxicrypto-core` is also
+##   always available as an alloc-free alternative to `hash_to_vec`.
+no_std = []
 
 [dependencies]
 oxicrypto-core.workspace = true
@@ -23,3 +34,6 @@ blake3.workspace = true
 digest = { workspace = true, features = ["alloc"] }
 shake.workspace = true
 cshake.workspace = true
+
+[dev-dependencies]
+hex.workspace = true

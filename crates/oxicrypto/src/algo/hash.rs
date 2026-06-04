@@ -18,6 +18,14 @@ pub enum HashAlgo {
     Sha3_384,
     /// SHA3-512 (64-byte output).
     Sha3_512,
+    /// SHA-512/256 (32-byte output).
+    Sha512_256,
+    /// BLAKE2b-256 (32-byte output).
+    Blake2b256,
+    /// BLAKE2b-512 (64-byte output).
+    Blake2b512,
+    /// BLAKE2s-256 (32-byte output).
+    Blake2s256,
     /// BLAKE3 (32-byte output).
     Blake3,
 }
@@ -25,6 +33,7 @@ pub enum HashAlgo {
 /// Return a boxed [`Hash`] implementation for `algo`.
 #[cfg(feature = "pure")]
 #[must_use]
+#[inline(always)]
 pub fn hash_impl(algo: HashAlgo) -> oxicrypto_core::Box<dyn oxicrypto_core::Hash + Send + Sync> {
     match algo {
         HashAlgo::Sha256 => oxicrypto_core::Box::new(oxicrypto_hash::Sha256),
@@ -33,6 +42,10 @@ pub fn hash_impl(algo: HashAlgo) -> oxicrypto_core::Box<dyn oxicrypto_core::Hash
         HashAlgo::Sha3_256 => oxicrypto_core::Box::new(oxicrypto_hash::Sha3_256),
         HashAlgo::Sha3_384 => oxicrypto_core::Box::new(oxicrypto_hash::Sha3_384),
         HashAlgo::Sha3_512 => oxicrypto_core::Box::new(oxicrypto_hash::Sha3_512),
+        HashAlgo::Sha512_256 => oxicrypto_core::Box::new(oxicrypto_hash::Sha512_256),
+        HashAlgo::Blake2b256 => oxicrypto_core::Box::new(oxicrypto_hash::Blake2b256),
+        HashAlgo::Blake2b512 => oxicrypto_core::Box::new(oxicrypto_hash::Blake2b512),
+        HashAlgo::Blake2s256 => oxicrypto_core::Box::new(oxicrypto_hash::Blake2s256),
         HashAlgo::Blake3 => oxicrypto_core::Box::new(oxicrypto_hash::Blake3),
     }
 }
@@ -48,6 +61,10 @@ impl core::fmt::Display for HashAlgo {
             HashAlgo::Sha3_256 => "SHA3-256",
             HashAlgo::Sha3_384 => "SHA3-384",
             HashAlgo::Sha3_512 => "SHA3-512",
+            HashAlgo::Sha512_256 => "SHA-512/256",
+            HashAlgo::Blake2b256 => "BLAKE2b-256",
+            HashAlgo::Blake2b512 => "BLAKE2b-512",
+            HashAlgo::Blake2s256 => "BLAKE2s-256",
             HashAlgo::Blake3 => "BLAKE3",
         })
     }
@@ -65,6 +82,10 @@ impl core::str::FromStr for HashAlgo {
             "SHA3-256" | "SHA3_256" | "sha3-256" | "sha3_256" => Ok(HashAlgo::Sha3_256),
             "SHA3-384" | "SHA3_384" | "sha3-384" | "sha3_384" => Ok(HashAlgo::Sha3_384),
             "SHA3-512" | "SHA3_512" | "sha3-512" | "sha3_512" => Ok(HashAlgo::Sha3_512),
+            "SHA-512/256" | "SHA512-256" | "sha512-256" | "sha-512/256" => Ok(HashAlgo::Sha512_256),
+            "BLAKE2b-256" | "blake2b-256" | "BLAKE2B256" => Ok(HashAlgo::Blake2b256),
+            "BLAKE2b-512" | "blake2b-512" | "BLAKE2B512" => Ok(HashAlgo::Blake2b512),
+            "BLAKE2s-256" | "blake2s-256" | "BLAKE2S256" => Ok(HashAlgo::Blake2s256),
             "BLAKE3" | "blake3" => Ok(HashAlgo::Blake3),
             _ => Err(CryptoError::UnsupportedAlgorithm),
         }

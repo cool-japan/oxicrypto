@@ -27,7 +27,13 @@ SA-kdf items implemented 2026-05-26. Added KBKDF SP 800-108 counter mode (SHA-25
   - **Prerequisites:** none beyond `oxicrypto-hash` (already a workspace sibling; add dep if absent — acyclic: hash depends only on core).
   - **Tests:** determinism (same inputs ⇒ same output; different salt ⇒ different output); parameter-rejection tests; **a documented reference vector cross-checked against the authors' reference implementation for small `(s,t)`** locked as a const. *Honesty note:* Balloon lacks an RFC/NIST KAT suite; correctness is pinned by the paper's algorithm + a reference-impl-derived vector, and this limitation is documented in the test file.
   - **Risk:** the counter/encoding details differ between Balloon variants. Mitigation: follow Algorithm 1 (not the parallel construction) and the reference C `balloon.c` byte layout exactly; document the exact construction in rustdoc; if the reference vector cannot be matched, return `deviated`.
-- [ ] Add bcrypt password hashing per OpenBSD's implementation (Blowfish-based, widely used for legacy compatibility) (~120 SLOC)
+- [x] Add bcrypt password hashing per OpenBSD's implementation (Blowfish-based, widely used for legacy compatibility) (~120 SLOC) (done 2026-06-02 — `src/bcrypt_kdf.rs`: full Blowfish cipher + Eksblowfish setup + bcrypt $2b$ format + base64 variant; Blowfish KAT (zero/ones/mixed/Schneier vectors), bcrypt round-trip KATs, 72-byte truncation, constant-time verify, malformed string rejection; Go x/crypto/bcrypt cross-validation vectors)
+  - **Goal:** OpenBSD-compatible `$2b$`-format bcrypt in the existing `PasswordHash` pattern. No `blowfish`/`bcrypt` crate exists in the workspace — implemented from scratch in pure Rust under `#![forbid(unsafe_code)]`.
+  - **Design:** New `src/bcrypt_kdf.rs`. Components: (1) Blowfish block cipher — P-array (18×u32) + 4 S-boxes (256×u32 each, standard π-digit initialization constants), 16-round Feistel `encrypt_block`, key schedule `expand_key(key, data)`. (2) Eksblowfish — cost-parameterized setup: `2^cost` iterations of alternating `EksBlowfishSetup` key/salt mixing. (3) bcrypt — encrypt the constant `b"OrpheanBeholderScryDoubt"` (3 64-bit blocks) 64 times → 23 output bytes; bcrypt base64 variant; `$2b$cc$<22-char salt><31-char hash>` string format; 72-byte NUL-inclusive password truncation ($2b semantics). Module shape matches existing `argon2_kdf.rs`/`scrypt_kdf.rs` pattern: `BcryptParams { cost: u32 }` impl `PasswordHashParams` (validate `cost ∈ [4,31]`, presets: interactive=10, moderate=12, sensitive=14), `BcryptHasher` impl `PasswordHash`, free fns `bcrypt_hash(password: &[u8], cost: u32, salt: &[u8]) -> Result<String, CryptoError>` and `bcrypt_verify(password: &[u8], hash_str: &str) -> Result<bool, CryptoError>`. No new crate dependency.
+  - **Files:** `src/bcrypt_kdf.rs` (new), `src/lib.rs` (add `pub mod bcrypt_kdf` + re-export block).
+  - **Prerequisites:** None — no external crate needed; entire implementation is self-contained pure Rust.
+  - **Tests:** (a) Blowfish ECB KAT using Eric Young's standard reference vectors (validates cipher + S-boxes in isolation); (b) bcrypt `$2b$` string KATs from well-known test vectors; (c) hash→verify round-trip; (d) wrong-password rejected (constant-time verify); (e) cost parameter honored; (f) 72-byte truncation behavior; (g) malformed `$…$` string rejected without panic.
+  - **Risk:** Highest-effort item — S-box correctness and Eksblowfish alternating-schedule order are the main traps. The two KAT tiers (cipher-level + bcrypt-level) directly validate both. File may approach 600+ lines including constant tables; `splitrs` if it crosses 2000 (policy limit). Note: the TODO's "~120 SLOC" is a significant underestimate; realistic size is ~450–700 SLOC including the 4 KiB of constant tables.
 - [x] Add HKDF-SHA-384 per RFC 5869 with SHA-384 as the underlying PRF (~30 SLOC)
 - [x] Add KBKDF (Key-Based Key Derivation Function) per NIST SP 800-108 Rev. 1 — counter mode (SHA-256/384/512) (done 2026-05-26)
 - [x] Add key stretching API: `KeyStretcher` trait with `stretch(password, params) -> DerivedKey` abstracting over Argon2/scrypt/PBKDF2/balloon (~40 SLOC) (done 2026-05-30 — `src/stretcher.rs`: object-safe `KeyStretcher`, `Stretcher`, `StretchParams` enum over Argon2id/scrypt/PBKDF2-SHA256/Balloon-SHA256, returns `SecretVec`)
@@ -49,7 +55,7 @@ SA-kdf items implemented 2026-05-26. Added KBKDF SP 800-108 counter mode (SHA-25
   - **Files:** `crates/oxicrypto-kdf/src/argon2_kdf.rs`, `crates/oxicrypto-kdf/src/pbkdf2_kdf.rs`, `crates/oxicrypto-kdf/src/scrypt_kdf.rs`
   - **Tests:** presets produce valid params; sensitive ≥ moderate ≥ interactive cost ordering.
   - **Risk:** Low.
-- [ ] Add salt generation helper: `generate_salt(rng, len) -> Vec<u8>` using `oxicrypto-rand` (~15 SLOC)
+- [x] Add salt generation helper: `generate_salt(rng, len) -> Vec<u8>` using `oxicrypto-rand` (~15 SLOC) (done 2026-06-03)
 - [x] PHC string format encode/parse for Argon2id (done 2026-05-25)
   - **Goal:** `$argon2id$v=19$m=...,t=...,p=...$salt$hash` encode + parse round-trip.
   - **Design:** Used the `password-hash` crate (enabled `password-hash` feature on argon2); exposed `argon2id_to_phc_string` / `argon2id_verify_phc`. PBKDF2/scrypt PHC left for future work.
@@ -58,10 +64,10 @@ SA-kdf items implemented 2026-05-26. Added KBKDF SP 800-108 counter mode (SHA-25
   - **Risk:** Low-moderate — confirm the `password-hash` feature is enabled on argon2/scrypt/pbkdf2.
 
 ## API Improvements
-- [ ] Add `KdfAlgo` enum variants in facade for PBKDF2-SHA-256, PBKDF2-SHA-512, Argon2id, scrypt, KBKDF
-- [ ] Add `kdf_impl()` facade factory function returning `Box<dyn Kdf>` for all algorithms
+- [x] Add `KdfAlgo` enum variants in facade for PBKDF2-SHA-256, PBKDF2-SHA-512, Argon2id, scrypt, KBKDF
+- [x] Add `kdf_impl()` facade factory function returning `Box<dyn Kdf>` for all algorithms
 - [x] Add `hkdf_sha{256,384,512}_derive_to_vec(ikm, salt, info, len) -> Result<Vec<u8>, CryptoError>` convenience wrappers (done 2026-05-26)
-- [ ] Enforce minimum output length (> 0) consistently across all KDFs (currently each function checks individually)
+- [x] Enforce minimum output length (> 0) consistently across all KDFs (done 2026-06-03 — all KDFs check `out.is_empty()`/`output_len==0` at entry and return `CryptoError::BadInput`; `tests/prop_kdf.rs::all_kdfs_reject_empty_output` tests this for HKDF-SHA-{256,384,512}, PBKDF2-SHA-256, Argon2id, scrypt, Balloon, and all `hkdf_*_derive_to_vec` wrappers)
 - [x] Add `PBKDF2_SHA256_MIN_ITERATIONS = 600_000` and `PBKDF2_SHA512_MIN_ITERATIONS = 210_000` (OWASP 2023) (done 2026-05-26)
 - [x] Add `Argon2Params::validate()` method that checks OWASP 2023 / RFC 9106 constraints (done 2026-05-26)
 - [x] Wrap derived key material in `SecretVec` from `oxicrypto-core` with `Zeroize` on drop (done 2026-05-26, via `kbkdf_counter_hmac_sha256_secret`)
@@ -86,26 +92,26 @@ SA-kdf items implemented 2026-05-26. Added KBKDF SP 800-108 counter mode (SHA-25
   - **Tests:** vectors drive `scrypt_derive` / `pbkdf2_sha256` and assert exact output.
   - **Risk:** the 1 GiB scrypt case is slow; gate it explicitly and never silently skip.
 - [x] Add balloon hashing test vectors from the original paper (Boneh et al.) (done 2026-05-30 — `tests/kat_balloon.rs`; paper has no RFC/NIST KAT, so pinned byte-exact to the authors' reference-impl published vectors `2ec8d833…`/`69f86890…`, then production delta=3 outputs locked against that validated reference)
-- [ ] Test: PBKDF2 with 0 iterations returns `BadInput` error
-- [ ] Test: Argon2id with salt < 8 bytes returns `BadInput` error (already checked)
-- [ ] Test: HKDF with output > 255 * HashLen returns appropriate error
-- [ ] Test: scrypt with invalid parameters (log_n > 63, p * r overflow) returns error
-- [ ] Property test: all KDFs are deterministic — same inputs always produce same output
-- [ ] Property test: different salts produce different outputs for same password
-- [ ] Fuzz test: no KDF panics on arbitrary parameter combinations
+- [x] Test: PBKDF2 with 0 iterations returns `BadInput` error (done 2026-06-03)
+- [x] Test: Argon2id with salt < 8 bytes returns `BadInput` error (done 2026-06-03)
+- [x] Test: HKDF with output > 255 * HashLen returns appropriate error (done 2026-06-03)
+- [x] Test: scrypt with invalid parameters (log_n > 63, p * r overflow) returns error (done 2026-06-03)
+- [x] Property test: all KDFs are deterministic — same inputs always produce same output (done 2026-06-03)
+- [x] Property test: different salts produce different outputs for same password (done 2026-06-03)
+- [x] Fuzz test: no KDF panics on arbitrary parameter combinations (done 2026-06-03 — `tests/prop_kdf.rs` has structured fuzz tests `fuzz_hkdf_{sha256,sha384,sha512}_no_panic`, `fuzz_pbkdf2_sha256_no_panic`, `fuzz_argon2id_no_panic`, `fuzz_scrypt_no_panic`, `fuzz_balloon_sha256_no_panic`, `fuzz_bcrypt_no_panic`; sweeps boundary-value parameter combinations and asserts no panics; coverage-guided fuzzing with `cargo-fuzz` is a separate follow-up requiring nightly)
 
 ## Performance
-- [ ] Benchmark Argon2id vs scrypt vs PBKDF2 at equivalent security levels
-- [ ] Benchmark HKDF-SHA-256 vs HKDF-SHA-512 derive throughput
-- [ ] Benchmark balloon hashing vs Argon2id for equivalent memory usage
-- [ ] Profile Argon2id memory allocation pattern (m_cost = 64 MiB is significant)
-- [ ] Benchmark PBKDF2 at 310,000 / 600,000 / 1,000,000 iterations (latency targets for interactive use)
-- [ ] Compare bcrypt cost=12 vs Argon2id INTERACTIVE latency
+- [x] Benchmark Argon2id vs scrypt vs PBKDF2 at equivalent security levels (done 2026-06-03 — `benches/kdf_bench.rs::bench_password_kdfs_equivalent_security`)
+- [x] Benchmark HKDF-SHA-256 vs HKDF-SHA-512 derive throughput (done 2026-06-03 — `benches/kdf_bench.rs::bench_hkdf_throughput`; sweeps output sizes 16/32/64/128 bytes)
+- [x] Benchmark balloon hashing vs Argon2id for equivalent memory usage (done 2026-06-03 — `benches/kdf_bench.rs::bench_balloon_vs_argon2id`; interactive/moderate presets vs Argon2id at equivalent memory)
+- [x] Profile Argon2id memory allocation pattern (m_cost = 64 MiB is significant) (done 2026-06-03 — `benches/kdf_bench.rs::bench_argon2id_memory_profiles`; sweeps m_cost 1024/4096/16384/65536 KiB)
+- [x] Benchmark PBKDF2 at 310,000 / 600,000 / 1,000,000 iterations (latency targets for interactive use) (done 2026-06-03 — `benches/kdf_bench.rs::bench_pbkdf2_iterations`)
+- [x] Compare bcrypt cost=12 vs Argon2id INTERACTIVE latency (done 2026-06-03 — `benches/kdf_bench.rs::bench_bcrypt_vs_argon2id`)
 
 ## Integration
-- [ ] Track upstream stable release: `argon2` 0.6.0 stable — update Cargo.toml when RC graduates
-- [ ] Wire salt generation to `oxicrypto-rand` OxiRng
-- [ ] Ensure HKDF uses `oxicrypto-mac` HMAC internally (currently uses `hkdf` crate directly; consider whether wrapping adds value or just indirection)
-- [ ] Provide KDF algorithm negotiation for OxiTLS: TLS 1.3 key schedule uses HKDF-Expand-Label
-- [ ] Coordinate with `oxicrypto-kex` for ECDH/X25519 shared-secret-to-key derivation (HKDF-Expand)
-- [ ] Coordinate with `oxicrypto-pq` for ML-KEM shared-key-to-AEAD-key derivation
+- [ ] Track upstream stable release: `argon2` 0.6.0 stable — update Cargo.toml when RC graduates [BLOCKED: upstream argon2 crate still on RC as of 2026-06-03]
+- [x] Wire salt generation to `oxicrypto-rand` OxiRng (done 2026-06-03 — `generate_salt(rng, len)` in `src/lib.rs` takes `&mut oxicrypto_rand::OxiRng` directly; `generate_salt_16()`/`generate_salt_32()` use `oxicrypto_rand::random_bytes`)
+- [ ] Ensure HKDF uses `oxicrypto-mac` HMAC internally (currently uses `hkdf` crate directly; consider whether wrapping adds value or just indirection) [DEFERRED: adds indirection without security benefit; revisit if oxicrypto-mac gains FIPS compliance value]
+- [ ] Provide KDF algorithm negotiation for OxiTLS: TLS 1.3 key schedule uses HKDF-Expand-Label [BLOCKED on `oxicrypto-tls` design; `hkdf_expand_label_sha256/sha384` already implemented in `src/hkdf_label.rs`]
+- [ ] Coordinate with `oxicrypto-kex` for ECDH/X25519 shared-secret-to-key derivation (HKDF-Expand) [BLOCKED on `oxicrypto-kex` design]
+- [ ] Coordinate with `oxicrypto-pq` for ML-KEM shared-key-to-AEAD-key derivation [BLOCKED on `oxicrypto-pq` design]

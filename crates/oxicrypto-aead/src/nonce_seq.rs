@@ -43,6 +43,19 @@ use oxicrypto_core::CryptoError;
 /// let n1 = seq.generate().unwrap();
 /// assert_ne!(n0, n1);
 /// ```
+///
+/// # Random-prefix Construction (requires `rand` feature)
+///
+/// When the `rand` feature is enabled, `NonceSequence::with_random_prefix`
+/// creates a sequence with a cryptographically secure random prefix.  This is
+/// the recommended approach for session-level nonce management where no shared
+/// prefix is required:
+///
+/// ```rust,ignore
+/// // Only available with feature = "rand"
+/// let mut seq = Nonce12::with_random_prefix()?;
+/// let n = seq.generate()?;
+/// ```
 pub struct NonceSequence<const N: usize> {
     /// The full nonce buffer: prefix in `[0..N-8]`, counter in `[N-8..N]`.
     nonce: [u8; N],
@@ -104,6 +117,43 @@ impl<const N: usize> NonceSequence<N> {
     #[must_use]
     pub fn count(&self) -> u64 {
         self.counter
+    }
+
+    /// Create a new `NonceSequence` with a **cryptographically secure random prefix**.
+    ///
+    /// The `N - 8` prefix bytes are drawn from `oxicrypto-rand`'s OS-seeded
+    /// ChaCha20 CSPRNG.  The counter starts at 0.
+    ///
+    /// Requires the `rand` feature of this crate.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CryptoError::Rng`] if the OS random source is unavailable.
+    /// Returns [`CryptoError::InvalidNonce`] if `N < 8`.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # #[cfg(feature = "rand")]
+    /// # {
+    /// use oxicrypto_aead::nonce_seq::Nonce12;
+    /// let mut seq = Nonce12::with_random_prefix().expect("RNG available");
+    /// let n0 = seq.generate().unwrap();
+    /// let n1 = seq.generate().unwrap();
+    /// assert_ne!(n0, n1);
+    /// # }
+    /// ```
+    #[cfg(feature = "rand")]
+    pub fn with_random_prefix() -> Result<Self, CryptoError> {
+        if N < 8 {
+            return Err(CryptoError::InvalidNonce);
+        }
+        let prefix_len = N - 8;
+        let mut prefix = alloc::vec![0u8; prefix_len];
+        use oxicrypto_core::Rng as _;
+        let mut rng = oxicrypto_rand::OxiRng::new()?;
+        rng.fill(&mut prefix)?;
+        Self::new(&prefix)
     }
 }
 
@@ -210,5 +260,42 @@ mod tests {
         assert_eq!(seq.count(), 1);
         seq.generate().expect("generate 2");
         assert_eq!(seq.count(), 2);
+    }
+
+    // ── with_random_prefix tests (requires `rand` feature) ───────────────────
+
+    #[cfg(feature = "rand")]
+    #[test]
+    fn nonce12_with_random_prefix_uniqueness() {
+        // Two independently constructed sequences should have different prefixes
+        // (with overwhelming probability) and produce unique nonces within each.
+        let mut seq_a = Nonce12::with_random_prefix().expect("with_random_prefix seq_a");
+        let mut seq_b = Nonce12::with_random_prefix().expect("with_random_prefix seq_b");
+
+        let n_a0 = seq_a.generate().expect("a0");
+        let n_a1 = seq_a.generate().expect("a1");
+        let _n_b0 = seq_b.generate().expect("b0");
+
+        // Within a single sequence, nonces must be unique.
+        assert_ne!(n_a0, n_a1, "same-sequence nonces must differ");
+    }
+
+    #[cfg(feature = "rand")]
+    #[test]
+    fn nonce24_with_random_prefix_counter_increments() {
+        let mut seq = Nonce24::with_random_prefix().expect("with_random_prefix");
+        let n0 = seq.generate().expect("n0");
+        let n1 = seq.generate().expect("n1");
+        assert_ne!(n0, n1, "sequential nonces must differ");
+        // Counter occupies the last 8 bytes and starts at 0.
+        assert_eq!(u64::from_be_bytes(n0[16..].try_into().expect("counter")), 0);
+        assert_eq!(u64::from_be_bytes(n1[16..].try_into().expect("counter")), 1);
+    }
+
+    #[cfg(feature = "rand")]
+    #[test]
+    fn nonce12_with_random_prefix_counter_starts_at_zero() {
+        let seq = Nonce12::with_random_prefix().expect("with_random_prefix");
+        assert_eq!(seq.count(), 0, "counter must start at zero");
     }
 }

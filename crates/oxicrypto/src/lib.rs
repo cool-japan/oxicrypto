@@ -161,11 +161,62 @@ pub use oxicrypto_sig::{
     RsaPkcs1v15Sha512Verifier,
     RsaPssSha256Signer,
     RsaPssSha256Verifier,
+    RsaPssSha384Signer,
+    RsaPssSha384Verifier,
+    RsaPssSha512Signer,
+    RsaPssSha512Verifier,
     SchnorrBip340,
 };
 
 #[cfg(feature = "pure")]
 pub use oxicrypto_mac::HmacSha384;
+
+/// TLS cipher suite → MAC negotiation.
+///
+/// Use [`negotiate_mac`] to obtain a boxed [`Mac`] implementation for the
+/// hash/MAC function associated with a TLS cipher suite (TLS 1.3 RFC 8446
+/// §7.1 and §4.4.4, plus common TLS 1.2 PRF suites).
+///
+/// # TLS 1.3 algorithm selection guide
+///
+/// TLS 1.3 (RFC 8446) mandates the following algorithm combinations. Use the
+/// corresponding OxiCrypto types when integrating with an OxiTLS backend:
+///
+/// | TLS 1.3 Cipher Suite | AEAD | Hash / PRF | OxiCrypto AEAD type | OxiCrypto Hash type |
+/// |---------------------|------|-----------|---------------------|---------------------|
+/// | `TLS_AES_128_GCM_SHA256` | AES-128-GCM | SHA-256 | [`oxicrypto_aead::Aes128Gcm`] | [`oxicrypto_hash::Sha256`] |
+/// | `TLS_AES_256_GCM_SHA384` | AES-256-GCM | SHA-384 | [`oxicrypto_aead::Aes256Gcm`] | [`oxicrypto_hash::Sha384`] |
+/// | `TLS_CHACHA20_POLY1305_SHA256` | ChaCha20-Poly1305 | SHA-256 | [`oxicrypto_aead::ChaCha20Poly1305`] | [`oxicrypto_hash::Sha256`] |
+///
+/// For **HKDF** (RFC 8446 §7.1 key schedule):
+/// - Use [`oxicrypto_kdf::hkdf_sha256_extract`] + [`oxicrypto_kdf::hkdf_sha256_expand`]
+///   for `TLS_AES_128_GCM_SHA256` and `TLS_CHACHA20_POLY1305_SHA256`.
+/// - Use [`oxicrypto_kdf::hkdf_sha384_extract`] + [`oxicrypto_kdf::hkdf_sha384_expand`]
+///   for `TLS_AES_256_GCM_SHA384`.
+/// - Use [`oxicrypto_kdf::hkdf_expand_label_sha256`] / [`oxicrypto_kdf::hkdf_expand_label_sha384`]
+///   for the `HKDF-Expand-Label` construction (RFC 8446 §7.1 + QUIC RFC 9001 §5.1).
+///
+/// For **handshake signatures** (RFC 8446 §4.4.3 Certificate Verify):
+/// - Use [`EcdsaP256Signer`] / [`EcdsaP256Verifier`] for `ecdsa_secp256r1_sha256`.
+/// - Use [`EcdsaP384Signer`] / [`EcdsaP384Verifier`] for `ecdsa_secp384r1_sha384`.
+/// - Use [`oxicrypto_sig::Ed25519`] / [`oxicrypto_sig::Ed25519Verifier`] for `ed25519`.
+/// - Use [`Ed448SigningKey`] / [`Ed448VerifyingKey`] for `ed448`.
+/// - Use [`RsaPssSha256Signer`] / [`RsaPssSha256Verifier`] for `rsa_pss_rsae_sha256`.
+/// - Use [`RsaPssSha384Signer`] / [`RsaPssSha384Verifier`] for `rsa_pss_rsae_sha384`.
+/// - Use [`RsaPssSha512Signer`] / [`RsaPssSha512Verifier`] for `rsa_pss_rsae_sha512`.
+///
+/// For **key exchange** (RFC 8446 §4.2.8 Key Share):
+/// - Use [`oxicrypto_kex::X25519`] for `x25519` (most common).
+/// - Use [`EcdhP256`] for `secp256r1`.
+/// - Use [`EcdhP384`] for `secp384r1`.
+///
+/// The [`negotiate_mac`] function maps a [`TlsCipherSuite`] to the correct
+/// HMAC type automatically. For full automated cipher-suite negotiation where
+/// OxiTLS directly consumes `oxicrypto` facade enums, coordinate with the
+/// OxiTLS project to expose a negotiation API accepting [`AeadAlgo`],
+/// [`HashAlgo`], and [`KexAlgo`] variants.
+#[cfg(feature = "pure")]
+pub use oxicrypto_mac::{mac_name_for_suite, negotiate_mac, TlsCipherSuite};
 
 #[cfg(feature = "pure")]
 pub use oxicrypto_kex::{EcdhP256, EcdhP384};
@@ -214,6 +265,16 @@ pub mod aws_lc {
 /// This module is **not** activated by the `pure` default features.
 #[cfg(feature = "pkcs11")]
 pub mod pkcs11 {
+    pub use oxicrypto_adapter_pkcs11::*;
+}
+
+/// Hardware Security Module (HSM) adapter backed by PKCS#11.
+///
+/// Enable with `features = ["hsm"]`.  Re-exports all types from
+/// [`oxicrypto_adapter_pkcs11`] under `oxicrypto::hsm::*`.
+/// This module is **not** activated by the `pure` default features.
+#[cfg(feature = "hsm")]
+pub mod hsm {
     pub use oxicrypto_adapter_pkcs11::*;
 }
 

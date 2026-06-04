@@ -24,6 +24,49 @@ use x25519_dalek::{PublicKey, StaticSecret};
 
 pub mod hpke;
 
+// ── Algorithm negotiation ─────────────────────────────────────────────────────
+
+/// Resolve a TLS named group / IANA group name to a [`KeyAgreement`] implementation.
+///
+/// This helper is intended for TLS stack integration: the group name comes from
+/// the client's `SupportedGroups` extension (or equivalent configuration), and
+/// the returned boxed implementation can be used directly for the key-exchange
+/// handshake step.
+///
+/// # Supported names
+///
+/// | Input string(s)                          | Algorithm  |
+/// |------------------------------------------|------------|
+/// | `"x25519"`, `"X25519"`                   | X25519     |
+/// | `"x448"`, `"X448"`                       | X448       |
+/// | `"secp256r1"`, `"P-256"`, `"p256"`       | ECDH P-256 |
+/// | `"secp384r1"`, `"P-384"`, `"p384"`       | ECDH P-384 |
+/// | `"secp521r1"`, `"P-521"`, `"p521"`       | ECDH P-521 |
+///
+/// # Errors
+///
+/// Returns [`CryptoError::UnsupportedAlgorithm`] for any unrecognized group name.
+///
+/// # Example
+///
+/// ```rust
+/// use oxicrypto_kex::negotiate_kex;
+///
+/// let kex = negotiate_kex("x25519").expect("X25519 is supported");
+/// assert_eq!(kex.name(), "X25519");
+/// assert_eq!(kex.scalar_len(), 32);
+/// ```
+pub fn negotiate_kex(group: &str) -> Result<Box<dyn KeyAgreement + Send + Sync>, CryptoError> {
+    match group {
+        "x25519" | "X25519" => Ok(Box::new(X25519)),
+        "x448" | "X448" => Ok(Box::new(X448)),
+        "secp256r1" | "P-256" | "p256" | "ECDH-P256" => Ok(Box::new(EcdhP256)),
+        "secp384r1" | "P-384" | "p384" | "ECDH-P384" => Ok(Box::new(EcdhP384)),
+        "secp521r1" | "P-521" | "p521" | "ECDH-P521" => Ok(Box::new(EcdhP521)),
+        _ => Err(CryptoError::UnsupportedAlgorithm),
+    }
+}
+
 // ── Type-safe public key wrappers ─────────────────────────────────────────────
 
 /// A type-safe 32-byte X25519 public key.
@@ -141,6 +184,27 @@ impl KeyAgreement for X25519 {
     }
 }
 
+impl X25519 {
+    /// Perform X25519 DH using a typed [`SecretKey<32>`] for the local scalar.
+    ///
+    /// Equivalent to [`KeyAgreement::agree`] but accepts the secret as a
+    /// `SecretKey<32>` instead of a raw byte slice, providing compile-time type
+    /// safety and ensuring the key material is zeroed when the `SecretKey` is dropped.
+    ///
+    /// # Errors
+    ///
+    /// Same error conditions as [`KeyAgreement::agree`].
+    #[must_use = "result must be checked"]
+    pub fn agree_with_key(
+        &self,
+        my_secret: &SecretKey<32>,
+        their_public: &[u8],
+        shared_out: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        self.agree(my_secret.as_bytes(), their_public, shared_out)
+    }
+}
+
 // ── ECDH P-256 ───────────────────────────────────────────────────────────────
 
 /// ECDH key agreement over NIST P-256 (secp256r1).
@@ -185,6 +249,27 @@ impl KeyAgreement for EcdhP256 {
     }
 }
 
+impl EcdhP256 {
+    /// Perform ECDH P-256 using a typed [`SecretVec`] holding the raw 32-byte scalar.
+    ///
+    /// Equivalent to [`KeyAgreement::agree`] but accepts the secret as a
+    /// `SecretVec` (zeroize-on-drop) for ergonomic use with the output of
+    /// [`ecdh_p256_generate_keypair`].
+    ///
+    /// # Errors
+    ///
+    /// Same error conditions as [`KeyAgreement::agree`].
+    #[must_use = "result must be checked"]
+    pub fn agree_with_key(
+        &self,
+        my_secret: &SecretVec,
+        their_public: &[u8],
+        shared_out: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        self.agree(my_secret.as_bytes(), their_public, shared_out)
+    }
+}
+
 // ── ECDH P-384 ───────────────────────────────────────────────────────────────
 
 /// ECDH key agreement over NIST P-384 (secp384r1).
@@ -225,6 +310,27 @@ impl KeyAgreement for EcdhP384 {
         }
         shared_out[..48].copy_from_slice(raw);
         Ok(())
+    }
+}
+
+impl EcdhP384 {
+    /// Perform ECDH P-384 using a typed [`SecretVec`] holding the raw 48-byte scalar.
+    ///
+    /// Equivalent to [`KeyAgreement::agree`] but accepts the secret as a
+    /// `SecretVec` (zeroize-on-drop) for ergonomic use with the output of
+    /// [`ecdh_p384_generate_keypair`].
+    ///
+    /// # Errors
+    ///
+    /// Same error conditions as [`KeyAgreement::agree`].
+    #[must_use = "result must be checked"]
+    pub fn agree_with_key(
+        &self,
+        my_secret: &SecretVec,
+        their_public: &[u8],
+        shared_out: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        self.agree(my_secret.as_bytes(), their_public, shared_out)
     }
 }
 
@@ -272,6 +378,27 @@ impl KeyAgreement for EcdhP521 {
         }
         shared_out[..66].copy_from_slice(raw);
         Ok(())
+    }
+}
+
+impl EcdhP521 {
+    /// Perform ECDH P-521 using a typed [`SecretVec`] holding the raw 66-byte scalar.
+    ///
+    /// Equivalent to [`KeyAgreement::agree`] but accepts the secret as a
+    /// `SecretVec` (zeroize-on-drop) for ergonomic use with the output of
+    /// [`ecdh_p521_generate_keypair`].
+    ///
+    /// # Errors
+    ///
+    /// Same error conditions as [`KeyAgreement::agree`].
+    #[must_use = "result must be checked"]
+    pub fn agree_with_key(
+        &self,
+        my_secret: &SecretVec,
+        their_public: &[u8],
+        shared_out: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        self.agree(my_secret.as_bytes(), their_public, shared_out)
     }
 }
 
@@ -413,6 +540,27 @@ impl KeyAgreement for X448 {
         }
         shared_out[..56].copy_from_slice(&shared);
         Ok(())
+    }
+}
+
+impl X448 {
+    /// Perform X448 DH using a typed [`SecretKey<56>`] for the local scalar.
+    ///
+    /// Equivalent to [`KeyAgreement::agree`] but accepts the secret as a
+    /// `SecretKey<56>` (zeroize-on-drop) for ergonomic use with the output of
+    /// [`x448_generate_keypair`].
+    ///
+    /// # Errors
+    ///
+    /// Same error conditions as [`KeyAgreement::agree`].
+    #[must_use = "result must be checked"]
+    pub fn agree_with_key(
+        &self,
+        my_secret: &SecretKey<56>,
+        their_public: &[u8],
+        shared_out: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        self.agree(my_secret.as_bytes(), their_public, shared_out)
     }
 }
 
@@ -899,6 +1047,147 @@ mod tests {
             result,
             Err(CryptoError::Kex),
             "X448 must reject all-zero (low-order) public key"
+        );
+    }
+
+    // ── agree_with_key typed API tests ────────────────────────────────────────
+
+    /// Verify that `X25519::agree_with_key` produces the same result as `agree`.
+    #[test]
+    fn x25519_agree_with_key_matches_agree() {
+        let mut rng = test_rng();
+        let (alice_sk, alice_pk) = x25519_generate_keypair(&mut rng).expect("Alice keygen");
+        let (bob_sk, bob_pk) = x25519_generate_keypair(&mut rng).expect("Bob keygen");
+
+        let kex = X25519;
+        let mut shared_raw = [0u8; 32];
+        kex.agree(alice_sk.as_bytes(), &bob_pk, &mut shared_raw)
+            .expect("raw agree");
+
+        let mut shared_typed = [0u8; 32];
+        kex.agree_with_key(&alice_sk, &bob_pk, &mut shared_typed)
+            .expect("typed agree");
+
+        assert_eq!(
+            shared_raw, shared_typed,
+            "agree_with_key must match agree for X25519"
+        );
+
+        // Also verify commutativity through the typed API.
+        let mut bob_shared = [0u8; 32];
+        kex.agree_with_key(&bob_sk, &alice_pk, &mut bob_shared)
+            .expect("Bob typed agree");
+        assert_eq!(
+            shared_typed, bob_shared,
+            "X25519 agree_with_key must be commutative"
+        );
+    }
+
+    /// Verify that `X448::agree_with_key` produces the same result as `agree`.
+    #[test]
+    fn x448_agree_with_key_matches_agree() {
+        let mut rng = test_rng();
+        let (alice_sk, alice_pk) = x448_generate_keypair(&mut rng).expect("Alice keygen");
+        let (bob_sk, bob_pk) = x448_generate_keypair(&mut rng).expect("Bob keygen");
+
+        let kex = X448;
+        let mut shared_raw = [0u8; 56];
+        kex.agree(alice_sk.as_bytes(), &bob_pk, &mut shared_raw)
+            .expect("raw agree");
+
+        let mut shared_typed = [0u8; 56];
+        kex.agree_with_key(&alice_sk, &bob_pk, &mut shared_typed)
+            .expect("typed agree");
+
+        assert_eq!(
+            shared_raw, shared_typed,
+            "agree_with_key must match agree for X448"
+        );
+
+        // Commutativity.
+        let mut bob_shared = [0u8; 56];
+        kex.agree_with_key(&bob_sk, &alice_pk, &mut bob_shared)
+            .expect("Bob typed agree");
+        assert_eq!(
+            shared_typed, bob_shared,
+            "X448 agree_with_key must be commutative"
+        );
+    }
+
+    /// Verify that `EcdhP256::agree_with_key` matches `agree` and is commutative.
+    #[test]
+    fn ecdh_p256_agree_with_key_matches_agree() {
+        let mut rng = test_rng();
+        let (alice_sk, alice_pk) =
+            ecdh_p256_generate_keypair(&mut rng).expect("Alice P-256 keygen");
+        let (bob_sk, bob_pk) = ecdh_p256_generate_keypair(&mut rng).expect("Bob P-256 keygen");
+
+        let kex = EcdhP256;
+        let mut shared_raw = [0u8; 32];
+        kex.agree(alice_sk.as_bytes(), &bob_pk, &mut shared_raw)
+            .expect("raw agree");
+
+        let mut shared_typed = [0u8; 32];
+        kex.agree_with_key(&alice_sk, &bob_pk, &mut shared_typed)
+            .expect("typed agree");
+
+        assert_eq!(
+            shared_raw, shared_typed,
+            "EcdhP256::agree_with_key must match agree"
+        );
+
+        let mut bob_shared = [0u8; 32];
+        kex.agree_with_key(&bob_sk, &alice_pk, &mut bob_shared)
+            .expect("Bob typed agree");
+        assert_eq!(
+            shared_typed, bob_shared,
+            "EcdhP256 agree_with_key commutativity"
+        );
+    }
+
+    /// Verify that `EcdhP384::agree_with_key` matches `agree`.
+    #[test]
+    fn ecdh_p384_agree_with_key_matches_agree() {
+        let mut rng = test_rng();
+        let (alice_sk, _alice_pk) =
+            ecdh_p384_generate_keypair(&mut rng).expect("Alice P-384 keygen");
+        let (_bob_sk, bob_pk) = ecdh_p384_generate_keypair(&mut rng).expect("Bob P-384 keygen");
+
+        let kex = EcdhP384;
+        let mut shared_raw = [0u8; 48];
+        kex.agree(alice_sk.as_bytes(), &bob_pk, &mut shared_raw)
+            .expect("raw agree");
+
+        let mut shared_typed = [0u8; 48];
+        kex.agree_with_key(&alice_sk, &bob_pk, &mut shared_typed)
+            .expect("typed agree");
+
+        assert_eq!(
+            shared_raw, shared_typed,
+            "EcdhP384::agree_with_key must match agree"
+        );
+    }
+
+    /// Verify that `EcdhP521::agree_with_key` matches `agree`.
+    #[test]
+    fn ecdh_p521_agree_with_key_matches_agree() {
+        let mut rng = test_rng();
+        let (alice_sk, _alice_pk) =
+            ecdh_p521_generate_keypair(&mut rng).expect("Alice P-521 keygen");
+        let (_bob_sk, bob_pk) = ecdh_p521_generate_keypair(&mut rng).expect("Bob P-521 keygen");
+
+        let kex = EcdhP521;
+        let mut shared_raw = [0u8; 66];
+        kex.agree(alice_sk.as_bytes(), &bob_pk, &mut shared_raw)
+            .expect("raw agree");
+
+        let mut shared_typed = [0u8; 66];
+        kex.agree_with_key(&alice_sk, &bob_pk, &mut shared_typed)
+            .expect("typed agree");
+
+        assert_eq!(
+            shared_raw, shared_typed,
+            "EcdhP521::agree_with_key must match agree"
         );
     }
 }

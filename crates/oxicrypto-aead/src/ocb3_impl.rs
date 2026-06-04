@@ -30,6 +30,8 @@ type Ocb3Aes256 = Ocb3<Aes256, U12, U16>;
 
 const NONCE_LEN: usize = 12;
 const TAG_LEN: usize = 16;
+/// RFC 7253: max plaintext = 2^36 − 1 bytes (conservative).
+const OCB3_MAX_PT: u64 = (1u64 << 36) - 1;
 
 // ── Internal helpers ───────────────────────────────────────────────────────────
 
@@ -44,6 +46,9 @@ fn ocb3_seal<C>(
 where
     C: AeadInPlace + KeyInit + KeySizeUser,
 {
+    if pt.len() as u64 > OCB3_MAX_PT {
+        return Err(CryptoError::BadInput);
+    }
     if key.len() != key_len {
         return Err(CryptoError::InvalidKey);
     }
@@ -130,6 +135,11 @@ impl Aead for Aes128Ocb3 {
         TAG_LEN
     }
 
+    /// RFC 7253: max plaintext = 2^36 − 1 bytes (conservative).
+    fn max_plaintext_len(&self) -> u64 {
+        OCB3_MAX_PT
+    }
+
     fn seal(
         &self,
         key: &[u8],
@@ -176,6 +186,11 @@ impl Aead for Aes256Ocb3 {
 
     fn tag_len(&self) -> usize {
         TAG_LEN
+    }
+
+    /// RFC 7253: max plaintext = 2^36 − 1 bytes (conservative).
+    fn max_plaintext_len(&self) -> u64 {
+        OCB3_MAX_PT
     }
 
     fn seal(

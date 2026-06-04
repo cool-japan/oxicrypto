@@ -32,6 +32,10 @@ impl Aead for XChaCha20Poly1305 {
     fn tag_len(&self) -> usize {
         16
     }
+    /// RFC 8439 §2.8: max plaintext = 2^38 − 64 bytes (256 GiB − 64).
+    fn max_plaintext_len(&self) -> u64 {
+        (1u64 << 38) - 64
+    }
     fn seal(
         &self,
         key: &[u8],
@@ -40,6 +44,9 @@ impl Aead for XChaCha20Poly1305 {
         pt: &[u8],
         ct_out: &mut [u8],
     ) -> Result<usize, CryptoError> {
+        if pt.len() as u64 > self.max_plaintext_len() {
+            return Err(CryptoError::BadInput);
+        }
         if key.len() != 32 {
             return Err(CryptoError::InvalidKey);
         }

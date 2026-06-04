@@ -62,6 +62,7 @@ pub mod test_rng {
     /// A deterministic RNG for test reproducibility.
     ///
     /// Wraps [`ChaCha20Rng`] with a fixed seed. Available only in test builds.
+    #[derive(Debug)]
     pub struct TestRng(ChaCha20Rng);
 
     impl TestRng {

@@ -10,9 +10,11 @@
 //! | Argon2id | [`argon2_kdf`] | `argon2` |
 //! | scrypt | [`scrypt_kdf`] | `scrypt` |
 //! | Balloon (SHA-256 / SHA-512) | [`balloon`] | `sha2` |
+//! | bcrypt (`$2b$`) | [`bcrypt_kdf`] | (pure Rust, from scratch) |
 
 pub mod argon2_kdf;
 pub mod balloon;
+pub mod bcrypt_kdf;
 pub mod hkdf_label;
 pub mod kbkdf;
 pub mod pbkdf2_kdf;
@@ -42,6 +44,7 @@ pub use balloon::{
     balloon_sha256, balloon_sha256_secret, balloon_sha512, balloon_sha512_secret, BalloonHasher,
     BalloonParams, BalloonVariant, BALLOON_DELTA,
 };
+pub use bcrypt_kdf::{bcrypt_hash, bcrypt_verify, BcryptHasher, BcryptParams};
 pub use hkdf_label::{hkdf_expand_label_sha256, hkdf_expand_label_sha384};
 pub use kbkdf::{
     kbkdf_counter_hmac_sha256, kbkdf_counter_hmac_sha256_secret, kbkdf_counter_hmac_sha384,
@@ -245,6 +248,14 @@ pub fn hkdf_sha256_derive_to_vec(
     if len == 0 {
         return Err(CryptoError::BadInput);
     }
+    // Guard against OOM on obviously-too-large requests before allocating.
+    // HKDF-SHA-256 maximum: 255 * 32 = 8 160 bytes.
+    const MAX_HKDF_SHA256: usize = 255 * 32;
+    if len > MAX_HKDF_SHA256 {
+        return Err(CryptoError::Internal(
+            "requested length exceeds HKDF-SHA-256 maximum (255 * 32)",
+        ));
+    }
     let mut out = vec![0u8; len];
     HkdfSha256.derive(ikm, salt, info, &mut out)?;
     Ok(out)
@@ -265,6 +276,14 @@ pub fn hkdf_sha384_derive_to_vec(
 ) -> Result<Vec<u8>, CryptoError> {
     if len == 0 {
         return Err(CryptoError::BadInput);
+    }
+    // Guard against OOM on obviously-too-large requests before allocating.
+    // HKDF-SHA-384 maximum: 255 * 48 = 12 240 bytes.
+    const MAX_HKDF_SHA384: usize = 255 * 48;
+    if len > MAX_HKDF_SHA384 {
+        return Err(CryptoError::Internal(
+            "requested length exceeds HKDF-SHA-384 maximum (255 * 48)",
+        ));
     }
     let mut out = vec![0u8; len];
     HkdfSha384.derive(ikm, salt, info, &mut out)?;
@@ -287,12 +306,49 @@ pub fn hkdf_sha512_derive_to_vec(
     if len == 0 {
         return Err(CryptoError::BadInput);
     }
+    // Guard against OOM on obviously-too-large requests before allocating.
+    // HKDF-SHA-512 maximum: 255 * 64 = 16 320 bytes.
+    const MAX_HKDF_SHA512: usize = 255 * 64;
+    if len > MAX_HKDF_SHA512 {
+        return Err(CryptoError::Internal(
+            "requested length exceeds HKDF-SHA-512 maximum (255 * 64)",
+        ));
+    }
     let mut out = vec![0u8; len];
     HkdfSha512.derive(ikm, salt, info, &mut out)?;
     Ok(out)
 }
 
 // ── Salt generation helpers ────────────────────────────────────────────────────
+
+/// Generate a random salt of variable length using the provided CSPRNG.
+///
+/// # Arguments
+/// - `rng`  — mutable reference to an [`oxicrypto_rand::OxiRng`]
+/// - `len`  — number of random bytes to generate; must be ≥ 1
+///
+/// # Errors
+/// - Returns [`CryptoError::BadInput`] if `len == 0`.
+/// - Returns [`CryptoError::Rng`] if the RNG fails to produce bytes.
+///
+/// # Example
+/// ```ignore
+/// use oxicrypto_kdf::generate_salt;
+/// use oxicrypto_rand::OxiRng;
+///
+/// let mut rng = OxiRng::new().unwrap();
+/// let salt = generate_salt(&mut rng, 32).unwrap();
+/// assert_eq!(salt.len(), 32);
+/// ```
+#[must_use = "generated salt result must be checked"]
+pub fn generate_salt(rng: &mut oxicrypto_rand::OxiRng, len: usize) -> Result<Vec<u8>, CryptoError> {
+    if len == 0 {
+        return Err(CryptoError::BadInput);
+    }
+    let mut buf = vec![0u8; len];
+    oxicrypto_core::Rng::fill(rng, &mut buf)?;
+    Ok(buf)
+}
 
 /// Generate a random 16-byte salt using the system CSPRNG.
 ///
@@ -372,6 +428,7 @@ where
     let mut computed = vec![0u8; expected.len()];
 
     // Use empty params — each concrete hasher uses its own stored params.
+    #[derive(Debug)]
     struct NullParams;
     impl oxicrypto_core::PasswordHashParams for NullParams {
         fn memory_cost(&self) -> Option<u32> {
@@ -581,5 +638,187 @@ mod tests {
         let hasher = Pbkdf2Sha256Hasher::new(1_000);
         let result = verify_password(&hasher, b"password", VERIFY_SALT, &[]);
         assert_eq!(result, Err(CryptoError::BadInput));
+    }
+
+    // ── generate_salt ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn generate_salt_variable_returns_correct_length() {
+        let mut rng = oxicrypto_rand::OxiRng::new().expect("OxiRng::new");
+        for len in [8usize, 16, 32, 64] {
+            let salt = generate_salt(&mut rng, len).expect("generate_salt");
+            assert_eq!(
+                salt.len(),
+                len,
+                "salt length must equal requested len {len}"
+            );
+        }
+    }
+
+    #[test]
+    fn generate_salt_zero_len_errors() {
+        let mut rng = oxicrypto_rand::OxiRng::new().expect("OxiRng::new");
+        let result = generate_salt(&mut rng, 0);
+        assert_eq!(result, Err(CryptoError::BadInput));
+    }
+
+    #[test]
+    fn generate_salt_produces_distinct_outputs() {
+        let mut rng = oxicrypto_rand::OxiRng::new().expect("OxiRng::new");
+        let s1 = generate_salt(&mut rng, 32).expect("salt 1");
+        let s2 = generate_salt(&mut rng, 32).expect("salt 2");
+        // Two independent 32-byte random salts must differ (with overwhelming probability).
+        assert_ne!(s1, s2, "generate_salt must return distinct salts");
+    }
+
+    // ── PBKDF2 — zero-iteration guard ────────────────────────────────────────
+
+    #[test]
+    fn pbkdf2_sha256_zero_iterations_returns_bad_input() {
+        let mut out = [0u8; 32];
+        let result = pbkdf2_sha256(b"password", b"saltsalt", 0, &mut out);
+        assert_eq!(
+            result,
+            Err(CryptoError::BadInput),
+            "0 iterations must be rejected"
+        );
+    }
+
+    #[test]
+    fn pbkdf2_sha512_zero_iterations_returns_bad_input() {
+        let mut out = [0u8; 64];
+        let result = pbkdf2_sha512(b"password", b"saltsalt", 0, &mut out);
+        assert_eq!(
+            result,
+            Err(CryptoError::BadInput),
+            "0 iterations must be rejected"
+        );
+    }
+
+    // ── Argon2id — short salt guard ────────────────────────────────────────────
+
+    #[test]
+    fn argon2id_salt_too_short_returns_bad_input() {
+        let params = Argon2Params::TEST_PARAMS;
+        let mut out = [0u8; 32];
+        // salt must be >= 8 bytes per RFC 9106; a 7-byte salt must error.
+        let result = argon2_kdf::argon2id_derive(b"password", b"tooshrt", params, &mut out);
+        assert_eq!(
+            result,
+            Err(CryptoError::BadInput),
+            "7-byte salt must be rejected (minimum is 8)"
+        );
+    }
+
+    #[test]
+    fn argon2id_empty_salt_returns_bad_input() {
+        let params = Argon2Params::TEST_PARAMS;
+        let mut out = [0u8; 32];
+        let result = argon2_kdf::argon2id_derive(b"password", b"", params, &mut out);
+        assert_eq!(
+            result,
+            Err(CryptoError::BadInput),
+            "empty salt must be rejected"
+        );
+    }
+
+    // ── HKDF output > 255 * HashLen → error ──────────────────────────────────
+
+    #[test]
+    fn hkdf_sha256_output_exceeding_max_errors() {
+        // HKDF-SHA-256 maximum output = 255 * 32 = 8160 bytes.
+        // Requesting 8161 bytes must return an error.
+        let kdf = HkdfSha256;
+        let max = 255 * 32 + 1; // one byte over the limit
+        let mut out = vec![0u8; max];
+        let result = kdf.derive(b"ikm", b"salt", b"info", &mut out);
+        assert!(
+            result.is_err(),
+            "HKDF-SHA-256 derive must fail when output > 255 * HashLen"
+        );
+    }
+
+    #[test]
+    fn hkdf_sha512_output_exceeding_max_errors() {
+        // HKDF-SHA-512 maximum output = 255 * 64 = 16320 bytes.
+        let kdf = HkdfSha512;
+        let max = 255 * 64 + 1;
+        let mut out = vec![0u8; max];
+        let result = kdf.derive(b"ikm", b"salt", b"info", &mut out);
+        assert!(
+            result.is_err(),
+            "HKDF-SHA-512 derive must fail when output > 255 * HashLen"
+        );
+    }
+
+    // ── scrypt — invalid parameters ────────────────────────────────────────────
+
+    #[test]
+    fn scrypt_log_n_64_rejected() {
+        // log_n = 64 would require 2^64 blocks — always rejected.
+        let result = scrypt_kdf::ScryptParams::new(64, 8, 1);
+        assert!(result.is_err(), "log_n=64 must be rejected");
+    }
+
+    #[test]
+    fn scrypt_zero_r_rejected() {
+        // r = 0 is invalid.
+        let result = scrypt_kdf::ScryptParams::new(14, 0, 1);
+        assert!(result.is_err(), "r=0 must be rejected by ScryptParams::new");
+    }
+
+    // ── Property: all KDFs are deterministic ─────────────────────────────────
+
+    #[test]
+    fn prop_kdf_hkdf_sha256_is_deterministic() {
+        let kdf = HkdfSha256;
+        let mut out1 = [0u8; 32];
+        let mut out2 = [0u8; 32];
+        kdf.derive(b"ikm", b"salt", b"info", &mut out1)
+            .expect("derive1");
+        kdf.derive(b"ikm", b"salt", b"info", &mut out2)
+            .expect("derive2");
+        assert_eq!(out1, out2, "HKDF-SHA-256 must be deterministic");
+    }
+
+    #[test]
+    fn prop_kdf_hkdf_sha384_is_deterministic() {
+        let kdf = HkdfSha384;
+        let mut out1 = [0u8; 48];
+        let mut out2 = [0u8; 48];
+        kdf.derive(b"ikm", b"salt", b"info", &mut out1)
+            .expect("derive1");
+        kdf.derive(b"ikm", b"salt", b"info", &mut out2)
+            .expect("derive2");
+        assert_eq!(out1, out2, "HKDF-SHA-384 must be deterministic");
+    }
+
+    // ── Property: different salts produce different outputs ────────────────────
+
+    #[test]
+    fn prop_kdf_different_salts_produce_different_outputs() {
+        let kdf = HkdfSha256;
+        let mut out1 = [0u8; 32];
+        let mut out2 = [0u8; 32];
+        kdf.derive(b"ikm", b"salt_a", b"info", &mut out1)
+            .expect("derive salt_a");
+        kdf.derive(b"ikm", b"salt_b", b"info", &mut out2)
+            .expect("derive salt_b");
+        assert_ne!(
+            out1, out2,
+            "different salts must produce different HKDF outputs"
+        );
+    }
+
+    #[test]
+    fn prop_pbkdf2_different_salts_produce_different_outputs() {
+        let mut out1 = [0u8; 32];
+        let mut out2 = [0u8; 32];
+        pbkdf2_sha256(b"password", b"salt_aaa", 1000, &mut out1).expect("pbkdf2 a");
+        pbkdf2_sha256(b"password", b"salt_bbb", 1000, &mut out2).expect("pbkdf2 b");
+        assert_ne!(
+            out1, out2,
+            "different salts must produce different PBKDF2 outputs"
+        );
     }
 }

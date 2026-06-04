@@ -14,6 +14,10 @@ pub enum PqKemAlgo {
     MlKem768,
     /// ML-KEM-1024 (FIPS 203, security category 5).
     MlKem1024,
+    /// X-Wing hybrid KEM: ML-KEM-768 + X25519 (draft-connolly-cfrg-xwing-kem-04).
+    XWing768,
+    /// Hybrid KEM: ML-KEM-1024 + ECDH P-384 (CNSA 2.0 target).
+    HybridKem1024P384,
 }
 
 /// Post-quantum signature algorithm selector.
@@ -58,32 +62,60 @@ fn pq_os_rng() -> Result<rand_chacha::ChaCha20Rng, crate::CryptoError> {
     Ok(rand_chacha::ChaCha20Rng::from_seed(seed))
 }
 
-/// Generate an ML-KEM key pair, returning `(decap_key_bytes, encap_key_bytes)`.
+/// Generate a KEM key pair, returning `(decap_key_bytes, encap_key_bytes)`.
 ///
-/// The decap key is a 64-byte seed; the encap key is the full public key.
+/// For ML-KEM variants the decap key is a 64-byte seed; the encap key is the
+/// full public key.  For hybrid variants the key material is concatenated as
+/// documented per variant.
 #[cfg(feature = "pq-preview")]
 pub fn pq_kem_generate(
     algo: PqKemAlgo,
 ) -> Result<(oxicrypto_core::Vec<u8>, oxicrypto_core::Vec<u8>), CryptoError> {
-    let mut rng = pq_os_rng()?;
-
     match algo {
         PqKemAlgo::MlKem512 => {
+            let mut rng = pq_os_rng()?;
             let (dk, ek) = oxicrypto_pq::MlKem512::generate(&mut rng);
             let dk_bytes = dk.to_bytes()?;
             let ek_bytes = ek.to_bytes();
             Ok((dk_bytes, ek_bytes))
         }
         PqKemAlgo::MlKem768 => {
+            let mut rng = pq_os_rng()?;
             let (dk, ek) = oxicrypto_pq::MlKem768::generate(&mut rng);
             let dk_bytes = dk.to_bytes()?;
             let ek_bytes = ek.to_bytes();
             Ok((dk_bytes, ek_bytes))
         }
         PqKemAlgo::MlKem1024 => {
+            let mut rng = pq_os_rng()?;
             let (dk, ek) = oxicrypto_pq::MlKem1024::generate(&mut rng);
             let dk_bytes = dk.to_bytes()?;
             let ek_bytes = ek.to_bytes();
+            Ok((dk_bytes, ek_bytes))
+        }
+        PqKemAlgo::XWing768 => {
+            use oxicrypto_core::Kem;
+            let (dk, ek) = oxicrypto_pq::XWing768::kem_generate()?;
+            // Serialize ek: mlkem_ek (1184 B) || x25519_pk (32 B)
+            let mut ek_bytes = ek.mlkem_ek.to_bytes();
+            ek_bytes.extend_from_slice(&ek.x25519_pk);
+            // Serialize dk: mlkem_dk seed (64 B) || x25519_sk (32 B) || x25519_pk (32 B)
+            let mut dk_bytes = dk.mlkem_dk.to_bytes()?;
+            dk_bytes.extend_from_slice(dk.x25519_sk.as_bytes());
+            dk_bytes.extend_from_slice(&dk.x25519_pk);
+            Ok((dk_bytes, ek_bytes))
+        }
+        PqKemAlgo::HybridKem1024P384 => {
+            use oxicrypto_core::Kem;
+            let (dk, ek) = oxicrypto_pq::HybridKem1024P384::kem_generate()?;
+            // Serialize ek: mlkem_ek (1568 B) || p384_pk (49 B)
+            let mut ek_bytes = ek.mlkem_ek.to_bytes();
+            ek_bytes.extend_from_slice(&ek.p384_pk);
+            // Serialize dk: mlkem_dk seed (64 B) || p384_sk || p384_pk (49 B) || mlkem_ek_bytes (1568 B)
+            let mut dk_bytes = dk.mlkem_dk.to_bytes()?;
+            dk_bytes.extend_from_slice(dk.p384_sk.as_bytes());
+            dk_bytes.extend_from_slice(&dk.p384_pk);
+            dk_bytes.extend_from_slice(&dk.mlkem_ek_bytes);
             Ok((dk_bytes, ek_bytes))
         }
     }
@@ -164,6 +196,8 @@ impl core::fmt::Display for PqKemAlgo {
             PqKemAlgo::MlKem512 => "ML-KEM-512",
             PqKemAlgo::MlKem768 => "ML-KEM-768",
             PqKemAlgo::MlKem1024 => "ML-KEM-1024",
+            PqKemAlgo::XWing768 => "X-Wing-768",
+            PqKemAlgo::HybridKem1024P384 => "Hybrid-ML-KEM-1024-P384",
         })
     }
 }
@@ -199,6 +233,10 @@ impl core::str::FromStr for PqKemAlgo {
             "ML-KEM-512" | "ml-kem-512" | "MLKEM512" => Ok(PqKemAlgo::MlKem512),
             "ML-KEM-768" | "ml-kem-768" | "MLKEM768" => Ok(PqKemAlgo::MlKem768),
             "ML-KEM-1024" | "ml-kem-1024" | "MLKEM1024" => Ok(PqKemAlgo::MlKem1024),
+            "X-Wing-768" | "x-wing-768" | "XWing768" => Ok(PqKemAlgo::XWing768),
+            "Hybrid-ML-KEM-1024-P384" | "hybrid-ml-kem-1024-p384" => {
+                Ok(PqKemAlgo::HybridKem1024P384)
+            }
             _ => Err(CryptoError::UnsupportedAlgorithm),
         }
     }

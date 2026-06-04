@@ -91,9 +91,10 @@ Minimal CSPRNG (77 SLOC). Provides `OxiRng` — a ChaCha20-based CSPRNG seeded f
 - [x] Implement `std::io::Read` for `OxiRng` (behind `std` feature) for reading random bytes via standard I/O (done 2026-05-26)
   - Implemented for both OxiRng and ReseedingRng; uses std::io::Error::other() (stable since 1.74, MSRV 1.89)
   - Tests in crates/oxicrypto-rand/tests/statistical.rs (std_read module)
-- [ ] Add `Display` / `Debug` that does NOT leak internal RNG state (currently `Debug` uses `finish_non_exhaustive` — good)
+- [x] Add `Display` / `Debug` that does NOT leak internal RNG state (currently `Debug` uses `finish_non_exhaustive` — good)
 - [x] Add `Clone` restriction: `OxiRng` should NOT implement `Clone` (prevent accidental state duplication)
-- [ ] Add `Send + Sync` bounds documentation: `OxiRng` is `Send` but NOT `Sync` by design (ChaCha20Rng is not `Sync`)
+- [x] Add `Send + Sync` bounds documentation: `OxiRng` is `Send` but NOT `Sync` by design (ChaCha20Rng is not `Sync`) (done 2026-06-03)
+  - Added detailed `# Thread Safety` doc sections to `OxiRng`, `OxiRng8`, `OxiRng12` in `src/oxirng.rs`; added compile-time `_assert_send` const fn to guarantee the `Send` bound is maintained
 - [x] Add `#[must_use]` on `OxiRng::new()` return type
   - Already present; also added `#[must_use]` to `random_bytes`, `random_range`, `random_range_to`, `random_nonce` (done 2026-05-26)
 
@@ -108,8 +109,8 @@ Minimal CSPRNG (77 SLOC). Provides `OxiRng` — a ChaCha20-based CSPRNG seeded f
   - test_independent_instances_differ in tests/statistical.rs
 - [x] Test: `fill()` works correctly for buffer of size 0 (done 2026-05-26)
   - test_fill_zero_length_buffer in tests/statistical.rs
-- [ ] Test: `fill()` for buffers of size 1, 31, 32, 33, 1024, 1_000_000
-- [ ] Test: `random_range(min, max)` never produces values outside [min, max)
+- [x] Test: `fill()` for buffers of size 1, 31, 32, 33, 1024, 1_000_000 (done 2026-06-03)
+- [x] Test: `random_range(min, max)` never produces values outside [min, max) (done 2026-06-03)
 - [x] Test: `random_range(0, 1)` always returns 0 (done 2026-05-26)
   - test_random_range_0_to_1_always_0 and test_random_range_free_fn_0_to_1_always_0 in tests/statistical.rs
 - [x] Test: `random_range(n, n)` returns error (empty range) (done 2026-05-26)
@@ -118,22 +119,35 @@ Minimal CSPRNG (77 SLOC). Provides `OxiRng` — a ChaCha20-based CSPRNG seeded f
   - `test_fork_produces_different_output` in `tests/statistical.rs`; verifies sequential calls differ (done 2026-05-26)
 - [x] Test: `ReseedingRng` reseeds after generating exactly N bytes (done 2026-05-26)
   - test_reseeding_rng_reseeds_on_threshold in tests/statistical.rs
-- [ ] Test: `shuffle()` permutes all elements (check that every permutation occurs over many runs)
-- [ ] Fuzz test: `fill()` never panics on any buffer size
-- [ ] Replace `unwrap()` in existing tests with `expect()` or proper error propagation
+- [x] Test: `shuffle()` permutes all elements (check that every permutation occurs over many runs) (done 2026-06-03)
+- [x] Fuzz test: `fill()` never panics on any buffer size (done 2026-06-03)
+- [x] Replace `unwrap()` in existing tests with `expect()` or proper error propagation (done 2026-06-03)
+  - Replaced `unwrap_or_else(|e| panic!(...))` with `expect()` in `tests/statistical.rs`; no bare `unwrap()` calls remain in any source or test file
 
 ## Performance
-- [ ] Benchmark `OxiRng::fill()` throughput for 32 B, 1 KiB, 64 KiB, 1 MiB buffers
-- [ ] Compare ChaCha20 CSPRNG throughput vs OS `/dev/urandom` direct reads
-- [ ] Benchmark ChaCha20 vs ChaCha12 vs ChaCha8 RNG throughput
-- [ ] Benchmark `ReseedingRng` overhead (reseeding latency at various thresholds)
-- [ ] Benchmark `random_range()` with rejection sampling vs simple modulo (measure bias elimination cost)
-- [ ] Profile thread-local RNG initialization cost
+- [x] Benchmark `OxiRng::fill()` throughput for 32 B, 1 KiB, 64 KiB, 1 MiB buffers (done 2026-06-03)
+  - `rand_fill/chacha20/<size>` group in `crates/oxicrypto-bench/benches/rand.rs`
+- [x] Compare ChaCha20 CSPRNG throughput vs OS `/dev/urandom` direct reads (done 2026-06-03)
+  - `rand_fill_vs_urandom/<size>` group: oxirng_chacha20 vs getrandom_direct
+- [x] Benchmark ChaCha20 vs ChaCha12 vs ChaCha8 RNG throughput (done 2026-06-03)
+  - `rand_fill/chacha8` and `rand_fill/chacha12` groups
+- [x] Benchmark `ReseedingRng` overhead (reseeding latency at various thresholds) (done 2026-06-03)
+  - `rand_reseeding` group: baseline_oxirng vs threshold 4/64/1024 KiB
+- [x] Benchmark `random_range()` with rejection sampling vs simple modulo (measure bias elimination cost) (done 2026-06-03)
+  - `rand_range` group: rejection_sampling_256/300/large vs naive_modulo_256
+- [x] Profile thread-local RNG initialization cost (done 2026-06-03)
+  - `rand_thread_rng` group: subsequent_call_32b and subsequent_call_1kib
 
 ## Integration
-- [ ] Ensure `oxicrypto-sig` key generation uses `OxiRng` (or accepts `&mut dyn Rng`)
-- [ ] Ensure `oxicrypto-kex` ephemeral key generation uses `OxiRng`
-- [ ] Ensure `oxicrypto-pq` ML-KEM/ML-DSA key generation can accept `OxiRng` via `CryptoRng` trait
-- [ ] Ensure `oxicrypto-aead` random nonce generation uses `OxiRng`
-- [ ] Ensure `oxicrypto-kdf` salt generation uses `OxiRng`
-- [ ] Provide `new_rng()` in facade that returns `Box<dyn Rng>` (already done; ensure it stays in sync)
+- [x] Ensure `oxicrypto-sig` key generation uses `OxiRng` (or accepts `&mut dyn Rng`)
+  - `ed25519_generate_keypair_with_oxirng`, `ecdsa_p256_generate_keypair_with_oxirng`, etc. fully wired; FROST tests use `OxiRng` directly (done 2026-06-03)
+- [x] Ensure `oxicrypto-kex` ephemeral key generation uses `OxiRng`
+  - All `generate_keypair` functions accept generic `R: TryCryptoRng`; `OxiRng` satisfies this; integration tests in `tests/prop_kex.rs` verify all five algorithms with `OxiRng::new()` (done 2026-06-03)
+- [x] Ensure `oxicrypto-pq` ML-KEM/ML-DSA key generation can accept `OxiRng` via `CryptoRng` trait
+  - Replaced `kem_os_rng()` (ad-hoc `getrandom → ChaCha20Rng`) with `OxiRng::new().map(rand_core::UnwrapErr)` in both `mlkem.rs` and `hybrid.rs`; `UnwrapErr<OxiRng>` satisfies `CryptoRng` (= `TryCryptoRng<Error=Infallible>`); `oxicrypto-rand` added as runtime dep (done 2026-06-03)
+- [x] Ensure `oxicrypto-aead` random nonce generation uses `OxiRng`
+  - `seal_with_random_nonce` accepts `&mut impl TryCryptoRng`; `NonceSequence::random()` uses `OxiRng::new()` directly (done 2026-06-03)
+- [x] Ensure `oxicrypto-kdf` salt generation uses `OxiRng`
+  - `salt_generate(rng: &mut OxiRng)` already present; `OxiRng::new()` used in tests (done 2026-06-03)
+- [x] Provide `new_rng()` in facade that returns `Box<dyn Rng>` (already done; ensure it stays in sync)
+  - `oxicrypto::new_rng()` wraps `OxiRng::new()` → `Box<dyn Rng>`; tested in `crates/oxicrypto/src/tests.rs` (done 2026-06-03)

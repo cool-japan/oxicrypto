@@ -320,3 +320,139 @@ mod std_read {
         assert_eq!(n, 128, "Read::read must return buf.len()");
     }
 }
+
+// ── fill() buffer size coverage ───────────────────────────────────────────────
+
+/// `fill()` must work correctly for buffer sizes of 1, 31, 32, 33, 1024,
+/// and 1_000_000 bytes.
+#[test]
+fn test_fill_various_buffer_sizes() {
+    let mut rng = OxiRng::new().expect("OxiRng::new");
+    for &size in &[1usize, 31, 32, 33, 1024, 1_000_000] {
+        let mut buf = vec![0u8; size];
+        rng.fill(&mut buf)
+            .expect("fill must succeed for all buffer sizes");
+        if size > 4 {
+            // With overwhelming probability a live CSPRNG will not produce all zeros.
+            let all_zero = buf.iter().all(|&b| b == 0);
+            assert!(
+                !all_zero,
+                "fill({size}) produced all-zero output — CSPRNG appears broken"
+            );
+        }
+    }
+}
+
+// ── random_range bounds test ──────────────────────────────────────────────────
+
+/// `random_range(min, max)` must never produce values outside `[min, max)`.
+#[test]
+fn test_random_range_never_out_of_bounds() {
+    let min: u64 = 100;
+    let max: u64 = 200;
+
+    for _ in 0..1000 {
+        let v = random_range(min, max).expect("random_range must succeed");
+        assert!(
+            v >= min && v < max,
+            "random_range({min}, {max}) produced {v} which is out of bounds"
+        );
+    }
+}
+
+/// `random_range(0, max)` with small `max` must never produce values ≥ max.
+#[test]
+fn test_random_range_small_max_never_exceeds() {
+    for max in [2u64, 3, 7, 10, 100] {
+        for _ in 0..500 {
+            let v = random_range(0, max).expect("random_range must succeed");
+            assert!(
+                v < max,
+                "random_range(0, {max}) produced {v} which is ≥ max"
+            );
+        }
+    }
+}
+
+// ── shuffle() permutation coverage ───────────────────────────────────────────
+
+/// `shuffle()` must leave all elements present in the slice and must produce
+/// different orderings over many runs (not always the same permutation).
+#[test]
+fn test_shuffle_preserves_elements_and_varies() {
+    let mut rng = OxiRng::new().expect("OxiRng::new");
+    let original: Vec<u32> = (0..8).collect();
+
+    let mut seen_different = false;
+    let first_order: Vec<u32>;
+
+    // Run 50 shuffles and collect the first result for comparison.
+    {
+        let mut slice = original.clone();
+        oxicrypto_rand::shuffle(&mut slice, &mut rng).expect("shuffle must succeed");
+        first_order = slice.clone();
+
+        // All elements must still be present.
+        let mut sorted = slice.clone();
+        sorted.sort();
+        assert_eq!(sorted, original, "shuffle must not add/remove elements");
+    }
+
+    for _ in 0..50 {
+        let mut slice = original.clone();
+        oxicrypto_rand::shuffle(&mut slice, &mut rng).expect("shuffle must succeed");
+
+        // Verify element preservation.
+        let mut sorted = slice.clone();
+        sorted.sort();
+        assert_eq!(sorted, original, "shuffle must not add/remove elements");
+
+        // Check that we see at least one different ordering.
+        if slice != first_order {
+            seen_different = true;
+        }
+    }
+
+    assert!(
+        seen_different,
+        "shuffle must produce different orderings across 50 runs"
+    );
+}
+
+/// `shuffle()` on a single-element slice must succeed and not change the element.
+#[test]
+fn test_shuffle_single_element() {
+    let mut rng = OxiRng::new().expect("OxiRng::new");
+    let mut slice = [42u64];
+    oxicrypto_rand::shuffle(&mut slice, &mut rng).expect("shuffle single element must succeed");
+    assert_eq!(
+        slice[0], 42,
+        "single-element shuffle must not change the value"
+    );
+}
+
+/// `shuffle()` on an empty slice must succeed without panicking.
+#[test]
+fn test_shuffle_empty_slice() {
+    let mut rng = OxiRng::new().expect("OxiRng::new");
+    let mut empty: Vec<i32> = Vec::new();
+    oxicrypto_rand::shuffle(&mut empty, &mut rng).expect("shuffle empty slice must succeed");
+}
+
+// ── Fuzz: fill() never panics ─────────────────────────────────────────────────
+
+/// `fill()` must never panic for any buffer size from 0 to 64 KiB.
+///
+/// This iterates over a range of buffer sizes including edge cases (0, 1,
+/// block-aligned, etc.) to confirm that the RNG handles all sizes gracefully.
+#[test]
+fn fuzz_fill_never_panics_various_sizes() {
+    let mut rng = OxiRng::new().expect("OxiRng::new");
+    for &size in &[
+        0usize, 1, 15, 16, 17, 31, 32, 63, 64, 65, 255, 256, 512, 1024, 4096, 65536,
+    ] {
+        let mut buf = vec![0u8; size];
+        // Must return Ok or a structured Err — never panic.
+        let _ = rng.fill(&mut buf);
+    }
+}

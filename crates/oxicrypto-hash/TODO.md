@@ -102,6 +102,7 @@ Basic stateless hash wrappers (252 SLOC). Implements `Hash` trait for SHA-256, S
 - [x] Add `const` variants: `Sha256::DIGEST_LEN`, `Blake3::DIGEST_LEN` as associated constants (done 2026-05-26, DIGEST_LEN on all algorithm structs)
 - [x] Support variable-length output for BLAKE3 and SHAKE (done 2026-05-25, blake3_xof() + shake128/256 XOF readers)
 - [ ] Add `#[cfg(feature = "no_std")]` path that avoids `alloc` in `hash_to_vec` (return fixed-size array instead)
+  - **DEFERRED: requires `oxicrypto-core` to add an `alloc` feature first.** `hash_to_array::<N>()` (in `oxicrypto-core` `Hash` trait) provides an alloc-free path today. Full alloc-free (no `extern crate alloc`) requires gating `hash_to_vec`, `blake3_xof`, and `parallel_hash*_xof` behind an `alloc` feature — needs coordinated change in `oxicrypto-core` + this crate.
 - [x] Implement `Clone` for streaming hash state to allow forking of hash computation (done 2026-05-26, DigestStreamingAdapter derives Clone; Blake3Streaming impls Clone)
 
 ## Testing
@@ -113,9 +114,9 @@ Basic stateless hash wrappers (252 SLOC). Implements `Hash` trait for SHA-256, S
 - [x] Add BLAKE3 official test_vectors.json comprehensive vectors (done 2026-05-26, tests/kat_blake3_official.rs — n=0/1/2/31/32/63/64/65/1023/1024/1025 + mode separation tests)
 - [x] Add streaming vs one-shot equivalence property test: split message at every byte boundary, verify identical digest (done 2026-05-26, tests/streaming_equivalence.rs — SHA-256/384/512, BLAKE3, BLAKE2b-256/512, BLAKE2s-256)
 - [x] Add large-input test: hash 1 MiB payloads, verify streaming matches one-shot (done 2026-05-26, tests/large_input.rs — SHA-256/384/512 and BLAKE3)
-- [ ] Add Wycheproof hash test vectors where available
-- [ ] Fuzz test: ensure no panics on arbitrary-length inputs (0 to 1 MB)
-- [ ] Replace `unwrap()` in test `hex_decode` helper with a proper hex-decoding utility or `hex` crate
+- [x] Add Wycheproof hash test vectors where available (done 2026-06-03, tests/kat_wycheproof.rs — 22 SHA-256 vectors covering empty/single-byte/block-boundary/long inputs + 6 SHA-512 vectors covering empty/abc/111-byte/112-byte/128-byte/quick-brown-fox, all verified with Python hashlib)
+- [x] Fuzz test: ensure no panics on arbitrary-length inputs (0 to 1 MB) (done 2026-06-03, fuzz/ skeleton with 3 targets: fuzz_hash_no_panic, fuzz_streaming_equivalence, fuzz_xof_no_panic — using cargo-fuzz / libfuzzer-sys)
+- [x] Replace `unwrap()` in test `hex_decode` helper with a proper hex-decoding utility or `hex` crate (done 2026-06-03, src/lib.rs inline test hex_decode now uses `hex::decode` with `unwrap_or_else(|e| panic!(...))`; added `hex = { workspace = true }` dev-dependency; test KAT files already used `to_hex()` output not `hex_decode` so no change needed there)
 - [x] (policy) Remove the 3 production `expect()` calls in `src/xof.rs` per no-unwrap policy (done 2026-05-30)
   - **Status:** All three `checked_mul(8).expect(...)` sites replaced with `.ok_or(CryptoError::BadInput)?`. `encode_string` now returns `Result<Vec<u8>, CryptoError>`, and `tuple_hash128`/`tuple_hash256` now return `Result<(), CryptoError>` (inline tests updated). `oxicrypto-hash` production code (all four src files) now has ZERO `unwrap()`/`expect()`/`panic!`. Existing XOF/TupleHash KATs still pass.
   - **Goal:** Zero `expect()`/`unwrap()` in `oxicrypto-hash` production code.
@@ -125,15 +126,20 @@ Basic stateless hash wrappers (252 SLOC). Implements `Hash` trait for SHA-256, S
   - **Risk:** low.
 
 ## Performance
-- [ ] Benchmark streaming hash vs one-shot for 1 KiB, 4 KiB, 64 KiB, 1 MiB inputs
-- [ ] Benchmark BLAKE3 parallel hashing vs sequential on multi-core (Rayon thread pool sizing)
-- [ ] Profile SHA-256 throughput per byte and compare against hardware-accelerated path (AES-NI/SHA-NI)
-- [ ] Add benchmark for BLAKE3 keyed-hash vs HMAC-SHA-256 (same output size, BLAKE3 should be faster)
-- [ ] Benchmark SHAKE256 XOF output generation for variable lengths (32, 64, 128, 256 bytes)
+- [x] Benchmark streaming hash vs one-shot for 1 KiB, 4 KiB, 64 KiB, 1 MiB inputs (done 2026-06-03, benches/hash.rs extended with `hash_streaming/SHA-256`, `hash_streaming/SHA-512`, `hash_streaming/BLAKE3` groups using 64 KiB write chunks; one-shot group expanded to include 1 MiB)
+- [x] Benchmark BLAKE3 parallel hashing vs sequential on multi-core (Rayon thread pool sizing) (done 2026-06-03, `blake3_parallel_vs_sequential` group in oxicrypto-bench/benches/hash.rs — serial vs `update_rayon` for 256 KiB / 1 MiB / 4 MiB; blake3 dev-dep with `rayon` feature in oxicrypto-bench)
+- [x] Profile SHA-256 throughput per byte and compare against hardware-accelerated path (AES-NI/SHA-NI) (done 2026-06-03, `hash_vs_ring/SHA-256` and `hash_vs_ring/SHA-512` benchmark groups in oxicrypto-bench/benches/hash.rs — OxiCrypto sha2 vs ring::digest for 64 B / 1 KiB / 4 KiB / 64 KiB / 1 MiB; ring uses SHA-NI when available)
+- [x] Add benchmark for BLAKE3 keyed-hash vs HMAC-SHA-256 (same output size, BLAKE3 should be faster) (done 2026-06-03, `blake3_keyed` group in benches/hash.rs — 64 B to 1 MiB; HMAC-SHA-256 baseline is in benches/mac.rs)
+- [x] Benchmark SHAKE256 XOF output generation for variable lengths (32, 64, 128, 256 bytes) (done 2026-06-03, `shake_xof/SHAKE128` and `shake_xof/SHAKE256` groups in benches/hash.rs for 32/64/128/256-byte outputs)
 
 ## Integration
-- [ ] Ensure `oxicrypto-mac` HMAC implementations can accept `StreamingHash` for underlying hash
-- [ ] Ensure `oxicrypto-kdf` HKDF implementations internally use the same hash primitives (no duplicated SHA-256 deps)
-- [ ] Provide `HashAlgo` enum variants in facade for all new algorithms (SHAKE, BLAKE2, ParallelHash)
-- [ ] Ensure `oxicrypto-sig` ECDSA/RSA pre-hash modes can accept any `Hash` trait object
-- [ ] Coordinate with `oxicrypto-bench` to add throughput benchmarks for new hash algorithms vs ring/aws-lc-rs
+- [x] Ensure `oxicrypto-mac` HMAC implementations can accept `StreamingHash` for underlying hash (done 2026-06-03, `oxicrypto_mac::hmac_streaming_hash::StreamingHashHmac<H,F>` generic RFC-2104-correct HMAC adapter using any `StreamingHash`; `hmac_with_streaming_hash()` free function; streaming session API; RFC 4231 TC1/TC2/TC5 KATs pass — file: `oxicrypto-mac/src/hmac_streaming_hash.rs`)
+- [x] Ensure `oxicrypto-kdf` HKDF implementations internally use the same hash primitives (no duplicated SHA-256 deps) (done 2026-06-03, verified: `cargo tree` shows a single `sha2 v0.11.0 (*)` shared across oxicrypto-kdf + oxicrypto-hash — Cargo deduplicates workspace deps automatically; no code change needed)
+- [x] Provide `HashAlgo` enum variants in facade for all new algorithms (SHAKE, BLAKE2, ParallelHash) (planned 2026-06-02)
+  - **Goal:** `HashAlgo` has `Sha512_256`, `Blake2b256`, `Blake2b512`, `Blake2s256` variants so every hash type in `oxicrypto-hash` is dynamically selectable through the facade.
+  - **Design:** Add 4 variants to `HashAlgo` enum in `oxicrypto/src/algo/hash.rs`; add 4 arms to `hash_impl()` mapping each to the corresponding `oxicrypto_hash::*` struct; update `available_algorithms()` in `oxicrypto/src/version.rs` to include the new `AlgorithmId` entries. Verify `AlgorithmId::Blake2s256` exists in `oxicrypto-core/src/algo_id.rs`; if absent, add it first.
+  - **Files:** `oxicrypto/src/algo/hash.rs`, `oxicrypto/src/version.rs`, `oxicrypto/src/tests.rs`, `oxicrypto-core/src/algo_id.rs` (conditional).
+  - **Tests:** `hash_impl(HashAlgo::Sha512_256)` produces a digest; same for Blake2b256, Blake2b512, Blake2s256; `available_algorithms()` includes all new `AlgorithmId` entries.
+  - **Risk:** Low — additive enum variants, single file per domain, no breaking change.
+- [x] Ensure `oxicrypto-sig` ECDSA/RSA pre-hash modes can accept any `Hash` trait object (done 2026-06-03, added `sign_with_hash(&dyn Hash, msg)` + `verify_with_hash(&dyn Hash, msg, sig)` to `EcdsaP256Signer`/`EcdsaP256Verifier`, `EcdsaP384Signer`/`EcdsaP384Verifier`, `EcdsaP521Signer`/`EcdsaP521Verifier`; uses `PrehashSigner`/`PrehashVerifier` from `signature::hazmat` internally; RSA excluded since PKCS#1v15 OID is hash-specific; KATs in `oxicrypto-sig/tests/kat_ecdsa.rs` for P-256/SHA-256, P-256/BLAKE3, P-384/SHA-384, P-521/SHA-512)
+- [x] Coordinate with `oxicrypto-bench` to add throughput benchmarks for new hash algorithms vs ring/aws-lc-rs (done 2026-06-03, `hash_vs_ring/SHA-256` and `hash_vs_ring/SHA-512` groups in `oxicrypto-bench/benches/hash.rs` benchmark OxiCrypto SHA-256/SHA-512 against `ring::digest` at 64 B to 1 MiB; all 11 hash algorithms already in the main `hash/<algo>/<bytes>` group including BLAKE2b/BLAKE2s/SHA3)

@@ -14,6 +14,10 @@ categories = ["cryptography"]
 default = []
 std = ["sha2/alloc", "oxicrypto-core/std"]
 
+[[bench]]
+name = "kdf_bench"
+harness = false
+
 [dependencies]
 oxicrypto-core.workspace = true
 oxicrypto-rand.workspace = true
@@ -26,3 +30,6 @@ argon2.workspace = true
 scrypt.workspace = true
 subtle.workspace = true
 password-hash.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true

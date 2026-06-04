@@ -46,6 +46,8 @@ pub enum AlgorithmId {
     Blake2b256,
     /// BLAKE2b-512
     Blake2b512,
+    /// BLAKE2s-256
+    Blake2s256,
     /// BLAKE3
     Blake3,
 
@@ -66,6 +68,10 @@ pub enum AlgorithmId {
     Aes128Ccm,
     /// AES-256-CCM (NIST SP 800-38C)
     Aes256Ccm,
+    /// AES-128-OCB3 (RFC 7253)
+    Aes128Ocb3,
+    /// AES-256-OCB3 (RFC 7253)
+    Aes256Ocb3,
     /// Deoxys-II-128-128 (CAESAR final portfolio, nonce-misuse resistant)
     DeoxysII128,
     /// AES-128-KW — AES Key Wrap with 128-bit key (RFC 3394)
@@ -114,6 +120,10 @@ pub enum AlgorithmId {
     RsaPkcs1v15Sha512,
     /// RSA-PSS with SHA-256 (RFC 8017)
     RsaPssSha256,
+    /// RSA-PSS with SHA-384 (RFC 8017)
+    RsaPssSha384,
+    /// RSA-PSS with SHA-512 (RFC 8017)
+    RsaPssSha512,
     /// BIP-340 Schnorr over secp256k1
     SchnorrBip340,
 
@@ -200,6 +210,7 @@ impl AlgorithmId {
             Self::Sha3_512 => "SHA3-512",
             Self::Blake2b256 => "BLAKE2b-256",
             Self::Blake2b512 => "BLAKE2b-512",
+            Self::Blake2s256 => "BLAKE2s-256",
             Self::Blake3 => "BLAKE3",
             Self::Aes128Gcm => "AES-128-GCM",
             Self::Aes256Gcm => "AES-256-GCM",
@@ -209,6 +220,8 @@ impl AlgorithmId {
             Self::XChaCha20Poly1305 => "XChaCha20-Poly1305",
             Self::Aes128Ccm => "AES-128-CCM",
             Self::Aes256Ccm => "AES-256-CCM",
+            Self::Aes128Ocb3 => "AES-128-OCB3",
+            Self::Aes256Ocb3 => "AES-256-OCB3",
             Self::DeoxysII128 => "Deoxys-II-128-128",
             Self::AesKeyWrap128 => "AES-KW-128",
             Self::AesKeyWrap256 => "AES-KW-256",
@@ -231,6 +244,8 @@ impl AlgorithmId {
             Self::RsaPkcs1v15Sha384 => "RSA-PKCS1v15-SHA-384",
             Self::RsaPkcs1v15Sha512 => "RSA-PKCS1v15-SHA-512",
             Self::RsaPssSha256 => "RSA-PSS-SHA-256",
+            Self::RsaPssSha384 => "RSA-PSS-SHA-384",
+            Self::RsaPssSha512 => "RSA-PSS-SHA-512",
             Self::SchnorrBip340 => "Schnorr-BIP340",
             Self::X25519 => "X25519",
             Self::X448 => "X448",
@@ -279,6 +294,7 @@ impl AlgorithmId {
             | Self::Sha3_512
             | Self::Blake2b256
             | Self::Blake2b512
+            | Self::Blake2s256
             | Self::Blake3 => AlgorithmCategory::Hash,
 
             Self::Aes128Gcm
@@ -289,6 +305,8 @@ impl AlgorithmId {
             | Self::XChaCha20Poly1305
             | Self::Aes128Ccm
             | Self::Aes256Ccm
+            | Self::Aes128Ocb3
+            | Self::Aes256Ocb3
             | Self::DeoxysII128
             | Self::AesKeyWrap128
             | Self::AesKeyWrap256 => AlgorithmCategory::Aead,
@@ -313,6 +331,8 @@ impl AlgorithmId {
             | Self::RsaPkcs1v15Sha384
             | Self::RsaPkcs1v15Sha512
             | Self::RsaPssSha256
+            | Self::RsaPssSha384
+            | Self::RsaPssSha512
             | Self::SchnorrBip340 => AlgorithmCategory::Signature,
 
             Self::X25519 | Self::X448 | Self::EcdhP256 | Self::EcdhP384 | Self::EcdhP521 => {

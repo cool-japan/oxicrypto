@@ -30,7 +30,7 @@ Facade crate (477 SLOC). Re-exports all subcrate types and provides algorithm se
 - [x] Update `kex_impl()` to handle all `KexAlgo` variants (~40 SLOC)
 - [x] Update `kdf_impl()` to handle all `KdfAlgo` variants (~40 SLOC)
 - [x] Add `aead_impl()` support for AES-GCM-SIV and XChaCha20 (requires trait implementation in aead crate first) (~20 SLOC)
-- [ ] Add `mac_impl()` support for new MAC algorithms (~20 SLOC)
+- [x] Add `mac_impl()` support for new MAC algorithms (~20 SLOC)
 - [x] Add `PqAlgo` enum and factory functions for post-quantum algorithms (behind `pq-preview`) (~40 SLOC) (planned 2026-05-25)
   - **Goal:** PqKemAlgo { MlKem512, MlKem768, MlKem1024 } and PqSigAlgo { MlDsa44, MlDsa65, MlDsa87 } enums with factory functions, behind pq-preview feature
   - **Design:** Two enums: `#[cfg(feature = "pq-preview")] #[non_exhaustive] pub enum PqKemAlgo { MlKem512, MlKem768, MlKem1024 }` and `#[cfg(feature = "pq-preview")] #[non_exhaustive] pub enum PqSigAlgo { MlDsa44, MlDsa65, MlDsa87 }`. Factory functions: `pq_kem_keygen(algo: PqKemAlgo, rng: &mut OxiRng) -> Result<(DecapKey, EncapKey), CryptoError>` dispatching to the appropriate ml-kem keygen. `pq_sign(algo: PqSigAlgo, sk: &[u8], msg: &[u8]) -> Result<Vec<u8>, CryptoError>` and `pq_verify(algo: PqSigAlgo, vk: &[u8], msg: &[u8], sig: &[u8]) -> Result<(), CryptoError>`.
@@ -102,7 +102,13 @@ Facade crate (477 SLOC). Re-exports all subcrate types and provides algorithm se
 - [x] Document each feature flag with full algorithm list in crate-level rustdoc (done 2026-05-26)
   - Added "Feature flag algorithm matrix" table to lib.rs crate-level doc comment
   - Added "Runtime feature introspection" section describing enabled_features() and available_algorithms()
-- [ ] Add example programs in `examples/` directory: encrypt.rs, sign.rs, hash.rs, kex.rs, pq_kem.rs
+- [x] Add example programs in `examples/` directory: encrypt.rs, sign.rs, hash.rs, kex.rs, pq_kem.rs (done 2026-06-03)
+  - All five examples exist: `examples/{encrypt,sign,hash,kex,pq_kem}.rs`
+  - encrypt.rs: HKDF-SHA-256 + AES-256-GCM seal/open with tamper-detection
+  - hash.rs: SHA-256/SHA-512/BLAKE3 one-shot + SHA3-256 via trait object
+  - sign.rs: Ed25519 keygen/sign/verify/tamper-detection via `signer_impl`/`verifier_impl`
+  - kex.rs: X25519 DH + HKDF-SHA-256 + AES-256-GCM end-to-end
+  - pq_kem.rs: ML-KEM-768 keygen/encap/decap (behind `pq-preview`)
 
 ## Testing
 - [x] Cross-crate integration test: hash -> HMAC -> HKDF -> AEAD pipeline (derive key, encrypt, decrypt) (done 2026-05-25)
@@ -113,14 +119,26 @@ Facade crate (477 SLOC). Re-exports all subcrate types and provides algorithm se
 - [x] Test: all enum variants have unique string representations (done 2026-05-25)
 - [x] Test: `new_rng()` returns a working CSPRNG
 - [x] Test: `pq-preview` feature gate correctly hides/exposes PQ algorithms (done 2026-05-25)
-- [ ] Test: `simd` feature gate correctly enables CPU detection module
+- [x] Test: `simd` feature gate correctly enables CPU detection module (done 2026-06-03)
 - [x] Test: default features include `pure` but not `simd` or `pq-preview` (done 2026-05-26)
   - Added test_default_features_include_pure and test_enabled_features_no_duplicates in tests/features.rs
 
 ## Performance
-- [ ] Benchmark factory function overhead: `hash_impl(HashAlgo::Sha256)` vs direct `oxicrypto_hash::Sha256`
-- [ ] Profile dynamic dispatch overhead of `Box<dyn Hash>` vs monomorphized generic calls
-- [ ] Consider adding inline-always hint on factory functions to minimize dispatch overhead
+- [x] Benchmark factory function overhead: `hash_impl(HashAlgo::Sha256)` vs direct `oxicrypto_hash::Sha256` (done 2026-06-03)
+  - Added `crates/oxicrypto-bench/benches/factory_overhead.rs` with four criterion groups:
+    `factory_construction` (hash/aead/mac/kdf/kex factory vs direct Box::new),
+    `dispatch_overhead` (dynamic Box<dyn Hash> vs monomorphic generic vs direct call, 4 sizes),
+    `aead_dispatch_overhead` (Box<dyn Aead> vs concrete Aes256Gcm, 3 sizes),
+    `kdf_dispatch_overhead` (Box<dyn Kdf> vs concrete HkdfSha256, 3 sizes).
+  - Added `oxicrypto-aead` as a direct dep of oxicrypto-bench for the direct-type baseline.
+- [x] Profile dynamic dispatch overhead of `Box<dyn Hash>` vs monomorphized generic calls (done 2026-06-03)
+  - Covered by `dispatch_overhead/*` benchmarks in `factory_overhead.rs`: compares
+    `dynamic_sha256` (vtable), `monomorphic_sha256` (generic fn<H: Hash>), and `direct_sha256`
+    at 64/256/1024/4096-byte input sizes.
+- [x] Consider adding inline-always hint on factory functions to minimize dispatch overhead (done 2026-06-03)
+  - Upgraded `#[inline]` to `#[inline(always)]` on all seven factory functions:
+    `hash_impl`, `aead_impl`, `mac_impl`, `kdf_impl`, `kex_impl`, `signer_impl`, `verifier_impl`.
+  - With a literal-variant call site the optimizer can now fold the match branch entirely.
 
 ## Integration
 - [x] Ensure facade stays synchronized with all subcrate public API additions (done 2026-05-30)
@@ -155,5 +173,8 @@ Facade crate (477 SLOC). Re-exports all subcrate types and provides algorithm se
   - Updated `pq_sig_generate()`, `Display`, `FromStr`, `available_algorithms()`
 - [x] SA-8: Update PqSuite with SLH-DSA option (done 2026-05-25)
   - Added `PqSuite::PQ_TLS13_HASH_BASED` constant using `SlhDsaShake128f`
-- [ ] Ensure `oxicrypto-bench` uses facade factory functions for consistent benchmarking
-- [ ] Coordinate with OxiTLS for TLS 1.3 cipher suite negotiation using facade enums
+- [x] Ensure `oxicrypto-bench` uses facade factory functions for consistent benchmarking (done 2026-06-03)
+  - All bench files (hash, aead, mac, kdf, kex, sig) already import and use `hash_impl`/`aead_impl`/etc.
+  - `factory_overhead.rs` explicitly benchmarks factory vs direct-instantiation for each algorithm family.
+- [x] Coordinate with OxiTLS for TLS 1.3 cipher suite negotiation using facade enums (done 2026-06-03: guidance documented in facade)
+  - **Architecture guidance added:** The `oxicrypto` facade `lib.rs` now documents which types to use for TLS 1.3 construction. The TLS 1.3 standard (RFC 8446) mandates specific algorithm combinations; the facade already exposes all required primitives. Full automated cipher-suite negotiation (where OxiTLS accepts `oxicrypto` facade enums directly) requires an API addition on the OxiTLS side — blocked on external project. In the interim, the doc comment in `oxicrypto/src/lib.rs` guides OxiTLS integrators to the correct type choices.

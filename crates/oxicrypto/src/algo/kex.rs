@@ -14,11 +14,14 @@ pub enum KexAlgo {
     EcdhP384,
     /// ECDH P-521 (66-byte scalar, SEC1 public key).
     EcdhP521,
+    /// X448 Diffie-Hellman (56-byte scalar, 56-byte point).
+    X448,
 }
 
 /// Return a boxed [`oxicrypto_core::KeyAgreement`] implementation for `algo`.
 #[cfg(feature = "pure")]
 #[must_use]
+#[inline(always)]
 pub fn kex_impl(
     algo: KexAlgo,
 ) -> oxicrypto_core::Box<dyn oxicrypto_core::KeyAgreement + Send + Sync> {
@@ -27,6 +30,7 @@ pub fn kex_impl(
         KexAlgo::EcdhP256 => oxicrypto_core::Box::new(oxicrypto_kex::EcdhP256),
         KexAlgo::EcdhP384 => oxicrypto_core::Box::new(oxicrypto_kex::EcdhP384),
         KexAlgo::EcdhP521 => oxicrypto_core::Box::new(oxicrypto_kex::EcdhP521),
+        KexAlgo::X448 => oxicrypto_core::Box::new(oxicrypto_kex::X448),
     }
 }
 
@@ -39,6 +43,7 @@ impl core::fmt::Display for KexAlgo {
             KexAlgo::EcdhP256 => "ECDH-P256",
             KexAlgo::EcdhP384 => "ECDH-P384",
             KexAlgo::EcdhP521 => "ECDH-P521",
+            KexAlgo::X448 => "X448",
         })
     }
 }
@@ -53,6 +58,7 @@ impl core::str::FromStr for KexAlgo {
             "ECDH-P256" | "ecdh-p256" | "ECDHP256" => Ok(KexAlgo::EcdhP256),
             "ECDH-P384" | "ecdh-p384" | "ECDHP384" => Ok(KexAlgo::EcdhP384),
             "ECDH-P521" | "ecdh-p521" | "ECDHP521" => Ok(KexAlgo::EcdhP521),
+            "X448" | "x448" => Ok(KexAlgo::X448),
             _ => Err(CryptoError::UnsupportedAlgorithm),
         }
     }

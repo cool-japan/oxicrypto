@@ -1,0 +1,31 @@
+[package]
+name = "oxicrypto-hash-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+oxicrypto-hash = { path = "..", features = ["std"] }
+oxicrypto-core = { path = "../../oxicrypto-core" }
+
+[[bin]]
+name = "fuzz_hash_no_panic"
+path = "fuzz_targets/fuzz_hash_no_panic.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_streaming_equivalence"
+path = "fuzz_targets/fuzz_streaming_equivalence.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_xof_no_panic"
+path = "fuzz_targets/fuzz_xof_no_panic.rs"
+test = false
+doc = false

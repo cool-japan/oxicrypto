@@ -41,15 +41,54 @@
 //!
 //! [`seal_with_random_nonce`] encrypts plaintext with an on-the-fly random
 //! nonce and returns `(nonce, ciphertext_with_tag)` separately.
+//!
+//! # HKDF → AEAD Key Derivation Pattern
+//!
+//! The `oxicrypto-kdf` crate (already a dependency) can derive an AEAD key
+//! from any shared secret (e.g. an X25519 output):
+//!
+//! ```rust
+//! use oxicrypto_aead::{Aes256Gcm};
+//! use oxicrypto_core::{Aead, Kdf};
+//! use oxicrypto_kdf::HkdfSha256;
+//!
+//! // Suppose `shared_secret` comes from an X25519 / ML-KEM handshake.
+//! let shared_secret = [0x42u8; 32]; // placeholder
+//! let salt = b"oxicrypto-aead-key-v1";
+//! let info = b"aead-key";
+//!
+//! let mut key = [0u8; 32]; // 256-bit AES-GCM key
+//! HkdfSha256.derive(&shared_secret, salt, info, &mut key)
+//!     .expect("HKDF derive failed");
+//!
+//! // Use the derived key with AES-256-GCM.
+//! let aead = Aes256Gcm;
+//! let nonce = [0u8; 12];
+//! let mut ct = vec![0u8; b"hello".len() + aead.tag_len()];
+//! aead.seal(&key, &nonce, b"", b"hello", &mut ct).expect("seal failed");
+//! ```
+//!
+//! # NonceSequence with Random Prefix (requires `rand` feature)
+//!
+//! Enable the `rand` feature to construct nonce sequences with OS-randomised
+//! prefixes — no shared state required:
+//!
+//! ```toml
+//! [dependencies]
+//! oxicrypto-aead = { version = "...", features = ["rand"] }
+//! ```
 
 extern crate alloc;
 
 pub mod aes_gcm_siv;
 pub mod ccm;
+pub mod committing;
 pub mod deoxys;
 pub(crate) mod deoxys_bc;
+pub mod gcm_synthetic;
 pub mod keywrap;
 pub mod nonce_seq;
+pub mod nonce_types;
 pub mod ocb3_impl;
 pub mod sealed_box;
 pub mod stream;
@@ -57,9 +96,12 @@ pub mod xchacha20;
 
 pub use aes_gcm_siv::{AesGcmSiv128, AesGcmSiv256};
 pub use ccm::{Aes128Ccm, Aes256Ccm};
+pub use committing::CommittingAead;
 pub use deoxys::Deoxys2_128;
+pub use gcm_synthetic::SyntheticIvAes256Gcm;
 pub use keywrap::{aes128_key_unwrap, aes128_key_wrap, aes256_key_unwrap, aes256_key_wrap};
 pub use nonce_seq::{Nonce12, Nonce24, NonceSequence};
+pub use nonce_types::{Nonce12Bytes, Nonce24Bytes, NonceBytes};
 pub use ocb3_impl::{Aes128Ocb3, Aes256Ocb3};
 pub use sealed_box::{open_box, seal_box};
 pub use stream::{Aes256GcmStream, ChaCha20Poly1305Stream};
@@ -213,6 +255,10 @@ impl Aead for Aes128Gcm {
     fn tag_len(&self) -> usize {
         16
     }
+    /// RFC 5116 §5.1: max plaintext = 2^36 − 32 bytes (64 GiB − 32).
+    fn max_plaintext_len(&self) -> u64 {
+        (1u64 << 36) - 32
+    }
     fn seal(
         &self,
         key: &[u8],
@@ -221,6 +267,9 @@ impl Aead for Aes128Gcm {
         pt: &[u8],
         ct_out: &mut [u8],
     ) -> Result<usize, CryptoError> {
+        if pt.len() as u64 > self.max_plaintext_len() {
+            return Err(CryptoError::BadInput);
+        }
         seal_in_place::<aes_gcm::Aes128Gcm>(
             key,
             nonce,
@@ -255,6 +304,95 @@ impl Aead for Aes128Gcm {
             },
         )
     }
+    fn seal_detached(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        pt: &[u8],
+        ct_out: &mut [u8],
+    ) -> Result<alloc::vec::Vec<u8>, CryptoError> {
+        if ct_out.len() != pt.len() {
+            return Err(CryptoError::BadInput);
+        }
+        if pt.len() as u64 > self.max_plaintext_len() {
+            return Err(CryptoError::BadInput);
+        }
+        if key.len() != 16 {
+            return Err(CryptoError::InvalidKey);
+        }
+        if nonce.len() != 12 {
+            return Err(CryptoError::InvalidNonce);
+        }
+        ct_out.copy_from_slice(pt);
+        let cipher =
+            aes_gcm::Aes128Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
+        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let tag = cipher
+            .encrypt_in_place_detached(nonce_arr, aad, ct_out)
+            .map_err(|_| CryptoError::Internal("AES-128-GCM encrypt failed"))?;
+        Ok(tag.to_vec())
+    }
+    fn open_detached(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        ct: &[u8],
+        tag: &[u8],
+        pt_out: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        if pt_out.len() < ct.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        if key.len() != 16 {
+            return Err(CryptoError::InvalidKey);
+        }
+        if nonce.len() != 12 {
+            return Err(CryptoError::InvalidNonce);
+        }
+        if tag.len() != 16 {
+            return Err(CryptoError::BadInput);
+        }
+        pt_out[..ct.len()].copy_from_slice(ct);
+        let cipher =
+            aes_gcm::Aes128Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
+        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let tag_arr = aead::Tag::<aes_gcm::Aes128Gcm>::clone_from_slice(tag);
+        cipher
+            .decrypt_in_place_detached(nonce_arr, aad, &mut pt_out[..ct.len()], &tag_arr)
+            .map_err(|_| CryptoError::InvalidTag)
+    }
+
+    fn seal_in_place(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        buf: &mut alloc::vec::Vec<u8>,
+    ) -> Result<(), CryptoError> {
+        if key.len() != 16 {
+            return Err(CryptoError::InvalidKey);
+        }
+        if nonce.len() != 12 {
+            return Err(CryptoError::InvalidNonce);
+        }
+        if buf.len() as u64 > self.max_plaintext_len() {
+            return Err(CryptoError::BadInput);
+        }
+        let pt_len = buf.len();
+        let tag_len = 16usize;
+        let ct_len = pt_len.checked_add(tag_len).ok_or(CryptoError::BadInput)?;
+        buf.resize(ct_len, 0u8);
+        let cipher =
+            aes_gcm::Aes128Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
+        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let tag = cipher
+            .encrypt_in_place_detached(nonce_arr, aad, &mut buf[..pt_len])
+            .map_err(|_| CryptoError::Internal("AES-128-GCM encrypt failed"))?;
+        buf[pt_len..].copy_from_slice(&tag);
+        Ok(())
+    }
 }
 
 // ── AES-256-GCM ───────────────────────────────────────────────────────────────
@@ -278,6 +416,10 @@ impl Aead for Aes256Gcm {
     fn tag_len(&self) -> usize {
         16
     }
+    /// RFC 5116 §5.1: max plaintext = 2^36 − 32 bytes (64 GiB − 32).
+    fn max_plaintext_len(&self) -> u64 {
+        (1u64 << 36) - 32
+    }
     fn seal(
         &self,
         key: &[u8],
@@ -286,6 +428,9 @@ impl Aead for Aes256Gcm {
         pt: &[u8],
         ct_out: &mut [u8],
     ) -> Result<usize, CryptoError> {
+        if pt.len() as u64 > self.max_plaintext_len() {
+            return Err(CryptoError::BadInput);
+        }
         seal_in_place::<aes_gcm::Aes256Gcm>(
             key,
             nonce,
@@ -320,6 +465,95 @@ impl Aead for Aes256Gcm {
             },
         )
     }
+    fn seal_detached(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        pt: &[u8],
+        ct_out: &mut [u8],
+    ) -> Result<alloc::vec::Vec<u8>, CryptoError> {
+        if ct_out.len() != pt.len() {
+            return Err(CryptoError::BadInput);
+        }
+        if pt.len() as u64 > self.max_plaintext_len() {
+            return Err(CryptoError::BadInput);
+        }
+        if key.len() != 32 {
+            return Err(CryptoError::InvalidKey);
+        }
+        if nonce.len() != 12 {
+            return Err(CryptoError::InvalidNonce);
+        }
+        ct_out.copy_from_slice(pt);
+        let cipher =
+            aes_gcm::Aes256Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
+        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let tag = cipher
+            .encrypt_in_place_detached(nonce_arr, aad, ct_out)
+            .map_err(|_| CryptoError::Internal("AES-256-GCM encrypt failed"))?;
+        Ok(tag.to_vec())
+    }
+    fn open_detached(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        ct: &[u8],
+        tag: &[u8],
+        pt_out: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        if pt_out.len() < ct.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        if key.len() != 32 {
+            return Err(CryptoError::InvalidKey);
+        }
+        if nonce.len() != 12 {
+            return Err(CryptoError::InvalidNonce);
+        }
+        if tag.len() != 16 {
+            return Err(CryptoError::BadInput);
+        }
+        pt_out[..ct.len()].copy_from_slice(ct);
+        let cipher =
+            aes_gcm::Aes256Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
+        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let tag_arr = aead::Tag::<aes_gcm::Aes256Gcm>::clone_from_slice(tag);
+        cipher
+            .decrypt_in_place_detached(nonce_arr, aad, &mut pt_out[..ct.len()], &tag_arr)
+            .map_err(|_| CryptoError::InvalidTag)
+    }
+
+    fn seal_in_place(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        buf: &mut alloc::vec::Vec<u8>,
+    ) -> Result<(), CryptoError> {
+        if key.len() != 32 {
+            return Err(CryptoError::InvalidKey);
+        }
+        if nonce.len() != 12 {
+            return Err(CryptoError::InvalidNonce);
+        }
+        if buf.len() as u64 > self.max_plaintext_len() {
+            return Err(CryptoError::BadInput);
+        }
+        let pt_len = buf.len();
+        let tag_len = 16usize;
+        let ct_len = pt_len.checked_add(tag_len).ok_or(CryptoError::BadInput)?;
+        buf.resize(ct_len, 0u8);
+        let cipher =
+            aes_gcm::Aes256Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
+        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let tag = cipher
+            .encrypt_in_place_detached(nonce_arr, aad, &mut buf[..pt_len])
+            .map_err(|_| CryptoError::Internal("AES-256-GCM encrypt failed"))?;
+        buf[pt_len..].copy_from_slice(&tag);
+        Ok(())
+    }
 }
 
 // ── ChaCha20-Poly1305 ─────────────────────────────────────────────────────────
@@ -343,6 +577,10 @@ impl Aead for ChaCha20Poly1305 {
     fn tag_len(&self) -> usize {
         16
     }
+    /// RFC 8439 §2.8: max plaintext = 2^38 − 64 bytes (256 GiB − 64).
+    fn max_plaintext_len(&self) -> u64 {
+        (1u64 << 38) - 64
+    }
     fn seal(
         &self,
         key: &[u8],
@@ -351,6 +589,9 @@ impl Aead for ChaCha20Poly1305 {
         pt: &[u8],
         ct_out: &mut [u8],
     ) -> Result<usize, CryptoError> {
+        if pt.len() as u64 > self.max_plaintext_len() {
+            return Err(CryptoError::BadInput);
+        }
         seal_in_place::<chacha20poly1305::ChaCha20Poly1305>(
             key,
             nonce,
@@ -384,6 +625,95 @@ impl Aead for ChaCha20Poly1305 {
                 tag_len: 16,
             },
         )
+    }
+    fn seal_detached(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        pt: &[u8],
+        ct_out: &mut [u8],
+    ) -> Result<alloc::vec::Vec<u8>, CryptoError> {
+        if ct_out.len() != pt.len() {
+            return Err(CryptoError::BadInput);
+        }
+        if pt.len() as u64 > self.max_plaintext_len() {
+            return Err(CryptoError::BadInput);
+        }
+        if key.len() != 32 {
+            return Err(CryptoError::InvalidKey);
+        }
+        if nonce.len() != 12 {
+            return Err(CryptoError::InvalidNonce);
+        }
+        ct_out.copy_from_slice(pt);
+        let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
+            .map_err(|_| CryptoError::InvalidKey)?;
+        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let tag = cipher
+            .encrypt_in_place_detached(nonce_arr, aad, ct_out)
+            .map_err(|_| CryptoError::Internal("ChaCha20Poly1305 encrypt failed"))?;
+        Ok(tag.to_vec())
+    }
+    fn open_detached(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        ct: &[u8],
+        tag: &[u8],
+        pt_out: &mut [u8],
+    ) -> Result<(), CryptoError> {
+        if pt_out.len() < ct.len() {
+            return Err(CryptoError::BufferTooSmall);
+        }
+        if key.len() != 32 {
+            return Err(CryptoError::InvalidKey);
+        }
+        if nonce.len() != 12 {
+            return Err(CryptoError::InvalidNonce);
+        }
+        if tag.len() != 16 {
+            return Err(CryptoError::BadInput);
+        }
+        pt_out[..ct.len()].copy_from_slice(ct);
+        let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
+            .map_err(|_| CryptoError::InvalidKey)?;
+        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let tag_arr = aead::Tag::<chacha20poly1305::ChaCha20Poly1305>::clone_from_slice(tag);
+        cipher
+            .decrypt_in_place_detached(nonce_arr, aad, &mut pt_out[..ct.len()], &tag_arr)
+            .map_err(|_| CryptoError::InvalidTag)
+    }
+
+    fn seal_in_place(
+        &self,
+        key: &[u8],
+        nonce: &[u8],
+        aad: &[u8],
+        buf: &mut alloc::vec::Vec<u8>,
+    ) -> Result<(), CryptoError> {
+        if key.len() != 32 {
+            return Err(CryptoError::InvalidKey);
+        }
+        if nonce.len() != 12 {
+            return Err(CryptoError::InvalidNonce);
+        }
+        if buf.len() as u64 > self.max_plaintext_len() {
+            return Err(CryptoError::BadInput);
+        }
+        let pt_len = buf.len();
+        let tag_len = 16usize;
+        let ct_len = pt_len.checked_add(tag_len).ok_or(CryptoError::BadInput)?;
+        buf.resize(ct_len, 0u8);
+        let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
+            .map_err(|_| CryptoError::InvalidKey)?;
+        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let tag = cipher
+            .encrypt_in_place_detached(nonce_arr, aad, &mut buf[..pt_len])
+            .map_err(|_| CryptoError::Internal("ChaCha20Poly1305 encrypt failed"))?;
+        buf[pt_len..].copy_from_slice(&tag);
+        Ok(())
     }
 }
 
@@ -464,6 +794,7 @@ mod tests {
     // ── seal_with_random_nonce tests ─────────────────────────────────────────
 
     /// Deterministic counter RNG for tests.
+    #[derive(Debug)]
     struct CounterRng {
         counter: u8,
     }
@@ -541,6 +872,7 @@ mod tests {
 
     #[test]
     fn seal_with_random_nonce_rng_failure_propagates() {
+        #[derive(Debug)]
         struct AlwaysFailRng;
         impl oxicrypto_core::Rng for AlwaysFailRng {
             fn fill(&mut self, _dst: &mut [u8]) -> Result<(), CryptoError> {
@@ -550,5 +882,76 @@ mod tests {
         let aead = Aes128Gcm;
         let result = seal_with_random_nonce(&aead, &KEY_128, AAD, PLAINTEXT, &mut AlwaysFailRng);
         assert_eq!(result, Err(CryptoError::Rng), "RNG failure must propagate");
+    }
+
+    // ── seal_detached / open_detached tests ──────────────────────────────────
+
+    #[test]
+    fn aes256gcm_seal_detached_open_detached_round_trip() {
+        let aead = Aes256Gcm;
+        let mut ct = vec![0u8; PLAINTEXT.len()];
+        let tag = aead
+            .seal_detached(&KEY_256, &NONCE_12, AAD, PLAINTEXT, &mut ct)
+            .expect("seal_detached failed");
+
+        assert_eq!(tag.len(), aead.tag_len(), "tag must be tag_len bytes");
+
+        let mut pt = vec![0u8; PLAINTEXT.len()];
+        aead.open_detached(&KEY_256, &NONCE_12, AAD, &ct, &tag, &mut pt)
+            .expect("open_detached failed");
+        assert_eq!(
+            pt.as_slice(),
+            PLAINTEXT,
+            "round-trip must recover plaintext"
+        );
+    }
+
+    #[test]
+    fn aes256gcm_detached_tag_matches_combined_trailing_bytes() {
+        // Key invariant: the tag returned by seal_detached must equal the
+        // trailing tag_len bytes of the combined seal output.
+        let aead = Aes256Gcm;
+
+        // Combined seal.
+        let mut combined = vec![0u8; PLAINTEXT.len() + aead.tag_len()];
+        aead.seal(&KEY_256, &NONCE_12, AAD, PLAINTEXT, &mut combined)
+            .expect("seal failed");
+        let trailing_tag = combined[PLAINTEXT.len()..].to_vec();
+
+        // Detached seal.
+        let mut ct_det = vec![0u8; PLAINTEXT.len()];
+        let det_tag = aead
+            .seal_detached(&KEY_256, &NONCE_12, AAD, PLAINTEXT, &mut ct_det)
+            .expect("seal_detached failed");
+
+        assert_eq!(
+            trailing_tag, det_tag,
+            "detached tag must equal trailing bytes of combined output"
+        );
+        assert_eq!(
+            &combined[..PLAINTEXT.len()],
+            ct_det.as_slice(),
+            "ciphertext bytes must match"
+        );
+    }
+
+    #[test]
+    fn aes256gcm_open_detached_wrong_tag_fails() {
+        let aead = Aes256Gcm;
+        let mut ct = vec![0u8; PLAINTEXT.len()];
+        let mut tag = aead
+            .seal_detached(&KEY_256, &NONCE_12, AAD, PLAINTEXT, &mut ct)
+            .expect("seal_detached failed");
+
+        // Corrupt the tag.
+        tag[0] ^= 0xFF;
+
+        let mut pt = vec![0u8; PLAINTEXT.len()];
+        let result = aead.open_detached(&KEY_256, &NONCE_12, AAD, &ct, &tag, &mut pt);
+        assert_eq!(
+            result,
+            Err(CryptoError::InvalidTag),
+            "corrupted tag must be rejected"
+        );
     }
 }

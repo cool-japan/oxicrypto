@@ -3,7 +3,12 @@ use alloc::vec::Vec;
 use crate::CryptoError;
 
 /// Stateless hash function (SHA-2, SHA-3, BLAKE3, ...).
-pub trait Hash: Send + Sync {
+///
+/// When the `debug` Cargo feature is enabled this trait gains
+/// `core::fmt::Debug` as an additional supertrait, making
+/// `Box<dyn Hash>` printable via `{:?}`.  Implementors must then
+/// also implement `Debug`.
+pub trait Hash: Send + Sync + crate::traits::MaybeDebug {
     /// Human-readable algorithm identifier (e.g. `"SHA-256"`).
     #[must_use]
     fn name(&self) -> &'static str;

@@ -13,7 +13,21 @@ categories = ["cryptography", "no-std"]
 [features]
 default = []
 std = []
+## Add `Debug` as a supertrait on all core trait objects.
+## Enables `Box<dyn Hash + Debug>` etc. at the cost of requiring `Debug` on
+## every implementor.  Off by default to avoid a breaking change on existing
+## code that uses blanket impls without `Debug`.
+debug = []
+## Derive `serde::Serialize` / `serde::Deserialize` on `CryptoError`.
+## Uses `serde` traits with `oxicode` as the recommended serialization
+## backend (COOLJAPAN policy: oxicode replaces bincode).
+## No-std + alloc compatible.
+serde = ["dep:serde"]
 
 [dependencies]
 subtle.workspace = true
 zeroize.workspace = true
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+oxicode.workspace = true

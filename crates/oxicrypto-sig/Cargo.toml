@@ -20,9 +20,9 @@ ed25519-dalek.workspace = true
 curve25519-dalek.workspace = true
 zeroize.workspace = true
 rsa.workspace = true
-p256.workspace = true
-p384.workspace = true
-p521.workspace = true
+p256 = { workspace = true, features = ["digest"] }
+p384 = { workspace = true, features = ["digest"] }
+p521 = { workspace = true, features = ["digest"] }
 k256.workspace = true
 ed448-goldilocks.workspace = true
 sha2 = { workspace = true, features = ["alloc", "oid"] }
@@ -34,3 +34,4 @@ getrandom.workspace = true
 
 [dev-dependencies]
 oxicrypto-rand.workspace = true
+oxicrypto-hash.workspace = true

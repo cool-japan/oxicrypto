@@ -42,9 +42,17 @@ name = "kex"
 harness = false
 
 [[bench]]
+name = "rand"
+harness = false
+
+[[bench]]
 name = "pq"
 harness = false
 required-features = ["pq-preview"]
+
+[[bench]]
+name = "factory_overhead"
+harness = false
 
 # ── Features ──────────────────────────────────────────────────────────────────
 
@@ -56,11 +64,14 @@ pq-preview = ["oxicrypto/pq-preview", "dep:oxicrypto-pq"]
 
 [dependencies]
 oxicrypto      = { workspace = true, features = ["pure", "simd"] }
+oxicrypto-hash = { workspace = true }
+oxicrypto-aead = { workspace = true }
 oxicrypto-kex  = { workspace = true }
 oxicrypto-sig  = { workspace = true }
 oxicrypto-mac  = { workspace = true }
 oxicrypto-kdf  = { workspace = true }
-oxicrypto-rand = { workspace = true }
+oxicrypto-core = { workspace = true }
+oxicrypto-rand = { workspace = true, features = ["std"] }
 oxicrypto-pq   = { workspace = true, optional = true }
 criterion      = { workspace = true }
 rand_chacha    = { workspace = true }
@@ -70,5 +81,10 @@ getrandom      = { workspace = true }
 # ring and aws-lc-rs are ONLY dev-dependencies of this bench crate.
 # They must NOT appear on normal dependency edges of any other crate.
 [dev-dependencies]
-ring        = { workspace = true }
-aws-lc-rs   = { workspace = true }
+ring          = { workspace = true }
+aws-lc-rs     = { workspace = true }
+# ed25519-dalek is a direct dev-dep so the batch-verify bench can use
+# Signature, SigningKey, VerifyingKey types (not re-exported by oxicrypto-sig).
+ed25519-dalek = { workspace = true }
+# blake3 with rayon feature for parallel-vs-sequential benchmark.
+blake3        = { workspace = true, features = ["rayon"] }

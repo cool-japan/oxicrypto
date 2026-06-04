@@ -45,17 +45,28 @@ X25519, X448, ECDH P-256/P-384/P-521 DH implemented. All implement `KeyAgreement
   - **Prerequisites:** ct_is_zero is re-exported from oxicrypto-core (already done)
   - **Tests:** Verify that passing the low-order X25519 point (0x00...00) as the public key returns CryptoError::KeyAgreement; verify normal key exchange still succeeds
   - **Risk:** Low — ct_is_zero is already used for P-256/P-384; the X25519 ECDH output is a fixed 32-byte array
-- [ ] Add hybrid key exchange: `HybridKex` combining classical (X25519) + post-quantum (ML-KEM-768) shared secrets via HKDF (~100 SLOC)
+- [ ] Add hybrid key exchange: `HybridKex` combining classical (X25519) + post-quantum (ML-KEM-768) shared secrets via HKDF (~100 SLOC) **[BLOCKED: dep cycle — implement in oxicrypto facade or new oxicrypto-hybrid crate; see Proposed follow-ups]**
 - [x] Add HPKE (RFC 9180) — full construction, all 4 modes (done 2026-05-30)
   - **Goal:** complete HPKE in a new `src/hpke/` module tree: DHKEM with Encap/Decap **and** AuthEncap/AuthDecap over DHKEM(X25519,HKDF-SHA256) [0x0020] and DHKEM(P-256,HKDF-SHA256) [0x0010]; labeled-HKDF; key schedule for Base/PSK/Auth/AuthPSK; stateful Seal/Open/Export context; single-shot wrappers; `HpkeSuite { kem, kdf, aead }` public API. AEADs: AES-128-GCM, AES-256-GCM, ChaCha20Poly1305, Export-only. Reachable as `oxicrypto_kex::hpke::*` and (facade) `oxicrypto::hpke::*`.
   - **Design/Files/Tests:** see approved plan `~/.claude/plans/cosmic-growing-lightning.md` (blocks H0–H8). Byte-exact validation vs RFC 9180 Appendix-A (A.1.1 X25519 full chain incl. seq0/seq1 + export; A.3.1 P-256) plus all-mode round-trips and negative tests.
   - **Scope note:** expanded beyond the original "mode 0 (Base), ~150 SLOC" to all four modes per IMPLEMENT POLICY.
 
 ## API Improvements
-- [ ] Add `KexAlgo` enum variants in facade for X448, EcdhP256, EcdhP384, EcdhP521
-- [ ] Add `kex_impl()` facade factory function for all key agreement algorithms
+- [x] Add `KexAlgo` enum variants in facade for X448, EcdhP256, EcdhP384, EcdhP521 (planned 2026-06-02)
+  - **Goal:** `KexAlgo::X448` is added to the enum (EcdhP256/P384/P521 already present) so X448 key agreement is dynamically selectable.
+  - **Design:** Add `X448` variant to `KexAlgo` in `oxicrypto/src/algo/kex.rs`; add arm `KexAlgo::X448 => Box::new(oxicrypto_kex::X448)` to `kex_impl()`; append `AlgorithmId::X448` to `available_algorithms()` in `version.rs`. (`AlgorithmId::X448` confirmed present in `oxicrypto-core/src/algo_id.rs`.)
+  - **Files:** `oxicrypto/src/algo/kex.rs`, `oxicrypto/src/version.rs`, `oxicrypto/src/tests.rs`.
+  - **Tests:** `kex_impl(KexAlgo::X448)` generates a keypair and performs key agreement; `available_algorithms()` includes `AlgorithmId::X448`.
+  - **Risk:** Low — single new match arm.
+- [x] Add `kex_impl()` facade factory function for all key agreement algorithms (planned 2026-06-02)
+  - **Goal:** `kex_impl()` handles `X448` alongside existing X25519 and ECDH variants.
+  - **Design:** Single new match arm for `KexAlgo::X448` in `kex_impl()`. This is part of the same WI-1 facade-completion task as L55.
+  - **Files:** `oxicrypto/src/algo/kex.rs`.
+  - **Tests:** Covered by L55 tests above.
+  - **Risk:** Low.
 - [x] Add `shared_secret_len() -> usize` method to `KeyAgreement` trait (added as default method in oxicrypto-core, done 2026-05-26)
-- [ ] Wrap `my_secret` in `SecretKey<32>` from `oxicrypto-core` with `Zeroize` on drop
+- [x] Wrap `my_secret` in `SecretKey<32>` from `oxicrypto-core` with `Zeroize` on drop (done 2026-06-03)
+  - **Implementation:** All `generate_keypair` functions return `SecretKey<N>` (X25519: `SecretKey<32>`, X448: `SecretKey<56>`) or `SecretVec` (P-256/P-384/P-521) — both implement `Zeroize + ZeroizeOnDrop`. Added `agree_with_key(&SecretKey<N>)` / `agree_with_key(&SecretVec)` typed-secret methods on each struct for ergonomic use without raw slice casting.
 - [x] Add type-safe public key types: `X25519PublicKey([u8; 32])`, `X448PublicKey([u8; 56])` instead of raw byte slices (done 2026-05-26)
 - [x] Add `agree_to_vec` convenience method returning `Vec<u8>` instead of writing to `shared_out` (added as default method on `KeyAgreement` trait in oxicrypto-core, done 2026-05-26)
 - [x] Add `#[must_use]` on `agree()` return type (added `#[must_use]` to all keygen functions; `agree()` already had `#[must_use]` via trait, done 2026-05-26)
@@ -69,22 +80,26 @@ X25519, X448, ECDH P-256/P-384/P-521 DH implemented. All implement `KeyAgreement
 - [x] Test: reject all-zero shared secret (indicates low-order public key) — covered in kat_x25519_wycheproof.rs and lib.rs tests (done 2026-05-26)
 - [x] Test: reject public key of incorrect length — covered in lib.rs tests for all curves (done 2026-05-26)
 - [x] Property test: DH commutativity — `agree(a, B) == agree(b, A)` for random key pairs — covered in kat_x25519_wycheproof.rs and kat_ecdh_nist.rs for all algorithms (done 2026-05-26)
-- [ ] Property test: same (secret, public) always produces same shared secret (deterministic)
-- [ ] Test: hybrid key exchange produces deterministic output from same seeds
-- [ ] Fuzz test: `agree()` never panics on arbitrary 32/56-byte inputs
+- [x] Property test: same (secret, public) always produces same shared secret (deterministic) (done 2026-06-03)
+- [ ] Test: hybrid key exchange produces deterministic output from same seeds **[BLOCKED: depends on HybridKex above]**
+- [x] Fuzz test: `agree()` never panics on arbitrary 32/56-byte inputs (done 2026-06-03)
 
 ## Performance
-- [ ] Benchmark X25519 agreement per operation vs ring/aws-lc-rs
-- [ ] Benchmark X448 vs X25519 (X448 ~2.5x slower)
-- [ ] Benchmark ECDH P-256 vs X25519 (P-256 ~1.5x slower on non-specialized hardware)
-- [ ] Benchmark hybrid KEM (X25519 + ML-KEM-768) total latency
-- [ ] Profile key generation time for all key agreement algorithms
+- [x] Benchmark X25519 agreement per operation vs ring/aws-lc-rs (done 2026-06-03; ring comparison sub-benchmark added to oxicrypto-bench/benches/kex.rs)
+- [x] Benchmark X448 vs X25519 (X448 ~2.5x slower) (done 2026-06-03; X448 keygen/agree/agree-round-trip criterion group added)
+- [x] Benchmark ECDH P-256 vs X25519 (P-256 ~1.5x slower on non-specialized hardware) (done 2026-06-03; ring P-256 comparison sub-benchmark added)
+- [ ] Benchmark hybrid KEM (X25519 + ML-KEM-768) total latency **[BLOCKED: depends on HybridKex]**
+- [x] Profile key generation time for all key agreement algorithms (done 2026-06-03; keygen bench group in every algorithm group)
 
 ## Integration
-- [ ] Wire key generation to `oxicrypto-rand` OxiRng
+- [x] Wire key generation to `oxicrypto-rand` OxiRng (done 2026-06-03; `oxicrypto-rand` added as dev-dependency; `oxirng_*_generate_keypair` integration tests verify all five algorithms work with `OxiRng::new()`)
 - [x] Use oxicrypto-kdf HKDF for shared-secret-to-key derivation in KEM/HPKE (labeled HKDF) (done 2026-05-30)
   - **Goal:** `HpkeKdf` enum in `src/hpke/labeled.rs` wraps `oxicrypto_kdf::hkdf_sha{256,384,512}_{extract,expand}` into RFC 9180 LabeledExtract/LabeledExpand; consumed by DHKEM ExtractAndExpand and the HPKE key schedule.
   - **Design:** approved plan blocks H2 + H4.
-- [ ] Coordinate with `oxicrypto-pq` ML-KEM for hybrid key exchange composition
-- [ ] Provide key exchange algorithm negotiation for OxiTLS: `negotiate_kex(group) -> Box<dyn KeyAgreement>`
-- [ ] Add all key exchange algorithms to `oxicrypto-bench` criterion benchmarks
+- [ ] Coordinate with `oxicrypto-pq` ML-KEM for hybrid key exchange composition **[BLOCKED: dep cycle — same resolution as HybridKex]**
+- [x] Provide key exchange algorithm negotiation for OxiTLS: `negotiate_kex(group) -> Box<dyn KeyAgreement>` (done 2026-06-03; maps TLS named groups secp256r1/secp384r1/secp521r1/P-256/P-384/P-521/x25519/X25519/x448/X448 to implementations; returns UnsupportedAlgorithm for unknown groups)
+- [x] Add all key exchange algorithms to `oxicrypto-bench` criterion benchmarks (done 2026-06-03; X448 keygen/agree/round-trip + ring comparisons for X25519 and P-256 added)
+
+## Proposed follow-ups
+
+- `hybrid-kex` (L48): Adding `oxicrypto-pq` as a dependency of `oxicrypto-kex` creates a **dependency cycle** (oxicrypto-pq depends on oxicrypto-kex). Resolution path: implement `HybridKex` in the `oxicrypto` facade crate (which already depends on both kex and pq), or create a new thin `oxicrypto-hybrid` crate. Note: `XWing768` in `oxicrypto-pq` already provides ML-KEM-768 + X25519; the HKDF-combiner variant this item requests would be a different (non-standard) construction.

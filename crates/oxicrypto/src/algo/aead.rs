@@ -37,6 +37,7 @@ pub enum AeadAlgo {
 /// Return a boxed [`oxicrypto_core::Aead`] implementation for `algo`.
 #[cfg(feature = "pure")]
 #[must_use]
+#[inline(always)]
 pub fn aead_impl(algo: AeadAlgo) -> oxicrypto_core::Box<dyn oxicrypto_core::Aead + Send + Sync> {
     match algo {
         AeadAlgo::Aes128Gcm => oxicrypto_core::Box::new(oxicrypto_aead::Aes128Gcm),

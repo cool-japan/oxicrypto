@@ -30,6 +30,10 @@ pub enum SigAlgo {
     RsaPkcs1v15Sha512,
     /// RSA-PSS with SHA-256.
     RsaPssSha256,
+    /// RSA-PSS with SHA-384.
+    RsaPssSha384,
+    /// RSA-PSS with SHA-512.
+    RsaPssSha512,
     /// Schnorr signatures over secp256k1 per BIP-340 (32-byte secret key,
     /// 32-byte x-only public key, 64-byte signature). The message is signed
     /// directly (no pre-hashing); the same type provides both signing and
@@ -43,6 +47,7 @@ pub enum SigAlgo {
 /// algorithm -- see [`SigAlgo`] for details.
 #[cfg(feature = "pure")]
 #[must_use]
+#[inline(always)]
 pub fn signer_impl(algo: SigAlgo) -> oxicrypto_core::Box<dyn oxicrypto_core::Signer + Send + Sync> {
     match algo {
         SigAlgo::Ed25519 => oxicrypto_core::Box::new(oxicrypto_sig::Ed25519),
@@ -54,6 +59,8 @@ pub fn signer_impl(algo: SigAlgo) -> oxicrypto_core::Box<dyn oxicrypto_core::Sig
         SigAlgo::RsaPkcs1v15Sha384 => oxicrypto_core::Box::new(oxicrypto_sig::RsaPkcs1v15Sha384),
         SigAlgo::RsaPkcs1v15Sha512 => oxicrypto_core::Box::new(oxicrypto_sig::RsaPkcs1v15Sha512),
         SigAlgo::RsaPssSha256 => oxicrypto_core::Box::new(oxicrypto_sig::RsaPssSha256),
+        SigAlgo::RsaPssSha384 => oxicrypto_core::Box::new(oxicrypto_sig::RsaPssSha384),
+        SigAlgo::RsaPssSha512 => oxicrypto_core::Box::new(oxicrypto_sig::RsaPssSha512),
         SigAlgo::SchnorrBip340 => oxicrypto_core::Box::new(oxicrypto_sig::SchnorrBip340),
     }
 }
@@ -61,6 +68,7 @@ pub fn signer_impl(algo: SigAlgo) -> oxicrypto_core::Box<dyn oxicrypto_core::Sig
 /// Return a boxed [`oxicrypto_core::Verifier`] implementation for `algo`.
 #[cfg(feature = "pure")]
 #[must_use]
+#[inline(always)]
 pub fn verifier_impl(
     algo: SigAlgo,
 ) -> oxicrypto_core::Box<dyn oxicrypto_core::Verifier + Send + Sync> {
@@ -80,6 +88,8 @@ pub fn verifier_impl(
             oxicrypto_core::Box::new(oxicrypto_sig::RsaPkcs1v15Sha512Verify)
         }
         SigAlgo::RsaPssSha256 => oxicrypto_core::Box::new(oxicrypto_sig::RsaPssSha256Verify),
+        SigAlgo::RsaPssSha384 => oxicrypto_core::Box::new(oxicrypto_sig::RsaPssSha384Verify),
+        SigAlgo::RsaPssSha512 => oxicrypto_core::Box::new(oxicrypto_sig::RsaPssSha512Verify),
         SigAlgo::SchnorrBip340 => oxicrypto_core::Box::new(oxicrypto_sig::SchnorrBip340),
     }
 }
@@ -98,6 +108,8 @@ impl core::fmt::Display for SigAlgo {
             SigAlgo::RsaPkcs1v15Sha384 => "RSA-PKCS1v15-SHA-384",
             SigAlgo::RsaPkcs1v15Sha512 => "RSA-PKCS1v15-SHA-512",
             SigAlgo::RsaPssSha256 => "RSA-PSS-SHA-256",
+            SigAlgo::RsaPssSha384 => "RSA-PSS-SHA-384",
+            SigAlgo::RsaPssSha512 => "RSA-PSS-SHA-512",
             SigAlgo::SchnorrBip340 => "Schnorr-BIP340",
         })
     }
@@ -118,6 +130,8 @@ impl core::str::FromStr for SigAlgo {
             "RSA-PKCS1v15-SHA-384" | "rsa-pkcs1v15-sha-384" => Ok(SigAlgo::RsaPkcs1v15Sha384),
             "RSA-PKCS1v15-SHA-512" | "rsa-pkcs1v15-sha-512" => Ok(SigAlgo::RsaPkcs1v15Sha512),
             "RSA-PSS-SHA-256" | "rsa-pss-sha-256" => Ok(SigAlgo::RsaPssSha256),
+            "RSA-PSS-SHA-384" | "rsa-pss-sha-384" => Ok(SigAlgo::RsaPssSha384),
+            "RSA-PSS-SHA-512" | "rsa-pss-sha-512" => Ok(SigAlgo::RsaPssSha512),
             "Schnorr-BIP340" | "schnorr-bip340" | "bip340" => Ok(SigAlgo::SchnorrBip340),
             _ => Err(CryptoError::UnsupportedAlgorithm),
         }

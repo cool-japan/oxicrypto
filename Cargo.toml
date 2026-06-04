@@ -18,7 +18,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.89"
 authors = ["COOLJAPAN OU (Team Kitasan)"]
@@ -28,19 +28,19 @@ description = "OxiCrypto is the COOLJAPAN-blessed Pure Rust cryptographic primit
 
 [workspace.dependencies]
 # Internal crates
-oxicrypto                  = { path = "crates/oxicrypto",                  version = "0.1.0" }
-oxicrypto-core             = { path = "crates/oxicrypto-core",             version = "0.1.0" }
-oxicrypto-hash             = { path = "crates/oxicrypto-hash",             version = "0.1.0" }
-oxicrypto-aead             = { path = "crates/oxicrypto-aead",             version = "0.1.0" }
-oxicrypto-cipher           = { path = "crates/oxicrypto-cipher",           version = "0.1.0" }
-oxicrypto-mac              = { path = "crates/oxicrypto-mac",              version = "0.1.0" }
-oxicrypto-sig              = { path = "crates/oxicrypto-sig",              version = "0.1.0" }
-oxicrypto-kex              = { path = "crates/oxicrypto-kex",              version = "0.1.0" }
-oxicrypto-kdf              = { path = "crates/oxicrypto-kdf",              version = "0.1.0" }
-oxicrypto-rand             = { path = "crates/oxicrypto-rand",             version = "0.1.0" }
-oxicrypto-pq               = { path = "crates/oxicrypto-pq",               version = "0.1.0" }
-oxicrypto-adapter-aws-lc   = { path = "crates/oxicrypto-adapter-aws-lc",   version = "0.1.0" }
-oxicrypto-adapter-pkcs11   = { path = "crates/oxicrypto-adapter-pkcs11",   version = "0.1.0" }
+oxicrypto                  = { path = "crates/oxicrypto",                  version = "0.1.1" }
+oxicrypto-core             = { path = "crates/oxicrypto-core",             version = "0.1.1" }
+oxicrypto-hash             = { path = "crates/oxicrypto-hash",             version = "0.1.1" }
+oxicrypto-aead             = { path = "crates/oxicrypto-aead",             version = "0.1.1" }
+oxicrypto-cipher           = { path = "crates/oxicrypto-cipher",           version = "0.1.1" }
+oxicrypto-mac              = { path = "crates/oxicrypto-mac",              version = "0.1.1" }
+oxicrypto-sig              = { path = "crates/oxicrypto-sig",              version = "0.1.1" }
+oxicrypto-kex              = { path = "crates/oxicrypto-kex",              version = "0.1.1" }
+oxicrypto-kdf              = { path = "crates/oxicrypto-kdf",              version = "0.1.1" }
+oxicrypto-rand             = { path = "crates/oxicrypto-rand",             version = "0.1.1" }
+oxicrypto-pq               = { path = "crates/oxicrypto-pq",               version = "0.1.1" }
+oxicrypto-adapter-aws-lc   = { path = "crates/oxicrypto-adapter-aws-lc",   version = "0.1.1" }
+oxicrypto-adapter-pkcs11   = { path = "crates/oxicrypto-adapter-pkcs11",   version = "0.1.1" }
 
 # Crypto primitives — new-generation RustCrypto (digest 0.11 chain)
 sha2           = { version = "0.11.0",  default-features = false }
@@ -77,6 +77,8 @@ getrandom      = { version = "0.4.2",  features = ["std", "sys_rng"] }
 # Utilities
 subtle         = { version = "2.6.1",  default-features = false }
 zeroize        = { version = "1.8.2",  default-features = false, features = ["derive", "alloc"] }
+serde          = { version = "1.0.228", default-features = false, features = ["derive", "alloc"] }
+oxicode        = { version = "0.2.4",  default-features = false, features = ["alloc", "serde"] }
 
 # M2 additions — signature algorithms (digest 0.11 / new-gen chain)
 rsa            = { version = "0.10.0-rc.18", default-features = false, features = ["encoding"] }
@@ -114,7 +116,14 @@ shake          = { version = "0.1.0",        default-features = false, features 
 cshake         = { version = "0.2.1",        default-features = false, features = ["alloc"] }
 
 # M3 additions — Post-quantum primitives (FIPS 203 / FIPS 204)
-ml-kem         = { version = "0.3.2",        default-features = false, features = ["hazmat", "zeroize"] }
+# `ml-kem`'s `alloc` feature forwards to `module-lattice/alloc`. Both `ml-kem`
+# and `ml-dsa` share the SAME `module-lattice` instance, so enabling it here
+# flips `module-lattice`'s `MaybeBox` from inline-on-stack to heap-`Box` for the
+# whole tree. Without it the ML-DSA key/expanded-key structs (A_hat is a k×l
+# matrix of degree-256 polynomials, ~48 KB for ML-DSA-65) live entirely on the
+# stack; holding several keys at once then overflows the 2 MiB test-thread stack.
+# Boxing shrinks every ML-DSA/ML-KEM key to pointer size and removes that hazard.
+ml-kem         = { version = "0.3.2",        default-features = false, features = ["alloc", "hazmat", "zeroize"] }
 ml-dsa         = { version = "0.1.0",        default-features = false, features = ["alloc", "rand_core", "zeroize"] }
 
 # M3 additions — post-quantum stateless signatures + new AEADs
@@ -131,3 +140,22 @@ criterion      = { version = "0.8.2", features = ["html_reports"] }
 ring           = { version = "0.17.14" }
 aws-lc-rs      = { version = "1.17.0" }
 cryptoki       = { version = "0.12.0" }
+
+# ── Build profiles ───────────────────────────────────────────────────────────
+# Optimize all *dependencies* (the "*" glob excludes workspace crates) even in
+# dev/test builds. Crypto primitives such as SLH-DSA (FIPS 205) and Keccak/SHAKE
+# live in external crates; at opt-level 0 their hash-heavy inner loops make tests
+# like SLH-DSA-128s signing take >190s under `cargo test`/`cargo nextest`.
+# Building deps at opt-level 3 keeps full test coverage while dropping those
+# round-trips to a few seconds. Workspace crates stay at opt-level 0 for fast
+# incremental rebuilds and debuggability.
+[profile.dev.package."*"]
+opt-level = 3
+
+# SLH-DSA (FIPS 205) is generic over its parameter set; the hash-heavy signing
+# loops monomorphize into oxicrypto-pq (the crate that instantiates the concrete
+# Sha2_128s / Shake128s types), which the "*" glob above does NOT cover. Optimize
+# it explicitly so the SLH-DSA-128s round-trip tests finish in a few seconds.
+[profile.dev.package.oxicrypto-pq]
+opt-level = 3
+

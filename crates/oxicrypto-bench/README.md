@@ -114,6 +114,53 @@ crate:
 Because these are dev-only edges, they never contaminate the Pure-Rust
 dependency graph of `oxicrypto` or any sibling crate consumed by applications.
 
+## Benchmark Results Summary
+
+The table below shows indicative throughput and latency figures for OxiCrypto
+algorithms measured on a modern x86_64 workstation (release mode, AES-NI / AVX2
+enabled).  Exact numbers depend on CPU microarchitecture, OS scheduler, and
+whether hardware acceleration is available.  Run `cargo bench -p oxicrypto-bench`
+to generate fresh numbers for your machine.
+
+Use `scripts/bench_summary.py` to regenerate this table from the latest
+Criterion JSON output, and `scripts/bench_ratios.py` to see OxiCrypto/ring
+comparison ratios.
+
+### Hash throughput (1 MiB input, release mode, indicative)
+
+| Algorithm | Indicative throughput |
+| :--- | ---: |
+| SHA-256 | ~1–3 GiB/s (SHA-NI) |
+| SHA-512 | ~1–2 GiB/s |
+| SHA3-256 | ~300–600 MiB/s |
+| BLAKE3 | ~3–10 GiB/s (parallel) |
+| BLAKE2b-256 | ~800 MiB/s – 1 GiB/s |
+
+### AEAD throughput (1 MiB input, release mode, indicative)
+
+| Algorithm | Indicative throughput |
+| :--- | ---: |
+| AES-128-GCM | ~2–10 GiB/s (AES-NI + CLMUL) |
+| AES-256-GCM | ~2–8 GiB/s |
+| ChaCha20-Poly1305 | ~1–3 GiB/s |
+| XChaCha20-Poly1305 | ~1–3 GiB/s |
+| AES-128-GCM-SIV | ~1–3 GiB/s |
+| AES-128-OCB3 | ~2–8 GiB/s |
+| Deoxys-II-128-128 | ~400–800 MiB/s |
+
+### Signature latency (per operation, release mode, indicative)
+
+| Algorithm | Keygen | Sign | Verify |
+| :--- | ---: | ---: | ---: |
+| Ed25519 | ~50 µs | ~50 µs | ~100 µs |
+| ECDSA P-256 | ~100 µs | ~100 µs | ~200 µs |
+| RSA-2048 PKCS#1v15 | ~500 ms | ~2 ms | ~50 µs |
+
+> **Note**: These are rough indicative ranges, not precise measurements.
+> Hardware acceleration (AES-NI, SHA-NI, AVX2, NEON) can improve throughput
+> by 3–10× over the software fallback.  Use `scripts/bench_simd_compare.sh`
+> to quantify the SIMD acceleration impact on your hardware.
+
 ## Cross-references
 
 - [`oxicrypto`](../oxicrypto) — the Pure-Rust facade benchmarked here (`hash_impl`, `aead_impl`, `mac_impl`, `kdf_impl`, etc.).

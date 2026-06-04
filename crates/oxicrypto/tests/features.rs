@@ -58,3 +58,48 @@ fn test_enabled_features_no_duplicates() {
         );
     }
 }
+
+/// Verify that the `simd` feature gate correctly controls whether `"simd"`
+/// appears in the enabled-features list.
+///
+/// When the build uses `--features simd`, the `simd` entry must be present;
+/// when it is absent from the build, the entry must not appear.
+#[test]
+fn test_simd_feature_gate_consistent() {
+    let features = oxicrypto::enabled_features();
+
+    #[cfg(feature = "simd")]
+    assert!(
+        features.contains(&"simd"),
+        "`simd` feature compiled in but missing from enabled_features(); got {:?}",
+        features
+    );
+
+    #[cfg(not(feature = "simd"))]
+    assert!(
+        !features.contains(&"simd"),
+        "`simd` feature NOT compiled in but unexpectedly appears in enabled_features(); got {:?}",
+        features
+    );
+}
+
+/// Verify that the `pq-preview` feature gate correctly controls whether
+/// `"pq-preview"` appears in the enabled-features list.
+#[test]
+fn test_pq_preview_feature_gate_consistent() {
+    let features = oxicrypto::enabled_features();
+
+    #[cfg(feature = "pq-preview")]
+    assert!(
+        features.contains(&"pq-preview"),
+        "`pq-preview` feature compiled in but missing from enabled_features(); got {:?}",
+        features
+    );
+
+    #[cfg(not(feature = "pq-preview"))]
+    assert!(
+        !features.contains(&"pq-preview"),
+        "`pq-preview` NOT compiled in but unexpectedly in enabled_features(); got {:?}",
+        features
+    );
+}

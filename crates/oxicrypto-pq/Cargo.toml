@@ -14,6 +14,7 @@ categories = ["cryptography"]
 oxicrypto-core = { workspace = true }
 oxicrypto-kex = { workspace = true }
 oxicrypto-kdf = { workspace = true }
+oxicrypto-rand = { workspace = true }
 ml-kem = { workspace = true }
 ml-dsa = { workspace = true }
 slh-dsa = { workspace = true }
@@ -27,6 +28,12 @@ getrandom = { workspace = true }
 [dev-dependencies]
 shake = { workspace = true }
 x25519-dalek = { workspace = true }
+ed25519-dalek = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "pq_benchmarks"
+harness = false
 
 [features]
 default = []

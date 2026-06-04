@@ -33,6 +33,7 @@ pub enum KdfAlgo {
 /// Uses 600,000 iterations per OWASP 2023 recommendation.
 /// `ikm` is treated as the password, `salt` as the salt; `info` is ignored.
 #[cfg(feature = "pure")]
+#[derive(Debug)]
 struct Pbkdf2Sha256Adapter;
 
 #[cfg(feature = "pure")]
@@ -55,6 +56,7 @@ impl oxicrypto_core::Kdf for Pbkdf2Sha256Adapter {
 ///
 /// Uses 210,000 iterations per OWASP 2023 recommendation.
 #[cfg(feature = "pure")]
+#[derive(Debug)]
 struct Pbkdf2Sha512Adapter;
 
 #[cfg(feature = "pure")]
@@ -78,6 +80,7 @@ impl oxicrypto_core::Kdf for Pbkdf2Sha512Adapter {
 /// Uses m=65536 KiB, t=3 passes, p=4 lanes (RFC 9106 §4 offline recommendation).
 /// Salt must be at least 8 bytes. `info` is ignored.
 #[cfg(feature = "pure")]
+#[derive(Debug)]
 struct Argon2idAdapter;
 
 #[cfg(feature = "pure")]
@@ -105,6 +108,7 @@ impl oxicrypto_core::Kdf for Argon2idAdapter {
 ///
 /// Uses log_n=17 (N=131072), r=8, p=1. `info` is ignored.
 #[cfg(feature = "pure")]
+#[derive(Debug)]
 struct ScryptAdapter;
 
 #[cfg(feature = "pure")]
@@ -140,6 +144,7 @@ impl oxicrypto_core::Kdf for ScryptAdapter {
 /// lightest hardened preset — chosen so the adapter stays fast in the facade's
 /// test suite while remaining memory-hard.
 #[cfg(feature = "pure")]
+#[derive(Debug)]
 struct BalloonAdapter;
 
 #[cfg(feature = "pure")]
@@ -164,6 +169,7 @@ impl oxicrypto_core::Kdf for BalloonAdapter {
 /// Return a boxed [`oxicrypto_core::Kdf`] implementation for `algo`.
 #[cfg(feature = "pure")]
 #[must_use]
+#[inline(always)]
 pub fn kdf_impl(algo: KdfAlgo) -> oxicrypto_core::Box<dyn oxicrypto_core::Kdf + Send + Sync> {
     match algo {
         KdfAlgo::HkdfSha256 => oxicrypto_core::Box::new(oxicrypto_kdf::HkdfSha256),

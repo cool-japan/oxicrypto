@@ -156,6 +156,98 @@ fn bench_kmac(c: &mut Criterion) {
     }
 }
 
+fn bench_streaming_vs_oneshot(c: &mut Criterion) {
+    use oxicrypto::prelude::{Mac, StreamingMac};
+    use oxicrypto_mac::{HmacSha256, HmacSha256Streaming};
+
+    let mut rng = make_rng();
+    // Large messages where chunking overhead vs one-shot matters.
+    let sizes: &[usize] = &[65536, 1_048_576];
+    let key = random_bytes(&mut rng, 32);
+
+    for &sz in sizes {
+        let data = random_bytes(&mut rng, sz);
+        let mut group = c.benchmark_group(format!("mac/streaming_vs_oneshot/{sz}"));
+        group.throughput(Throughput::Bytes(sz as u64));
+
+        // One-shot path.
+        {
+            let mut out = vec![0u8; 32];
+            let mac = HmacSha256;
+            let k = key.clone();
+            let d = data.clone();
+            group.bench_function("oneshot", move |b| {
+                b.iter(|| {
+                    mac.mac(&k, &d, &mut out).expect("oneshot mac failed");
+                });
+            });
+        }
+
+        // Streaming path (4 KiB chunks).
+        {
+            const CHUNK: usize = 4096;
+            let k = key.clone();
+            let d = data.clone();
+            let mut out = vec![0u8; 32];
+            group.bench_function("streaming_4k_chunks", move |b| {
+                b.iter(|| {
+                    let mut s = HmacSha256Streaming::new(&k).expect("streaming new failed");
+                    for chunk in d.chunks(CHUNK) {
+                        s.update(chunk);
+                    }
+                    s.finalize(&mut out).expect("streaming finalize failed");
+                });
+            });
+        }
+
+        group.finish();
+    }
+}
+
+fn bench_verify_overhead(c: &mut Criterion) {
+    use oxicrypto::prelude::Mac;
+    use oxicrypto_mac::HmacSha256;
+
+    let mut rng = make_rng();
+    let sizes: &[usize] = &[64, 1024, 65536];
+    let key = random_bytes(&mut rng, 32);
+
+    let mut group = c.benchmark_group("mac/verify_overhead/HMAC-SHA-256");
+
+    for &sz in sizes {
+        let data = random_bytes(&mut rng, sz);
+        let mac = HmacSha256;
+        let mut tag = [0u8; 32];
+        mac.mac(&key, &data, &mut tag).expect("mac setup failed");
+
+        group.throughput(Throughput::Bytes(sz as u64));
+
+        // mac-only (no verify)
+        {
+            let k = key.clone();
+            let d = data.clone();
+            let mut out = [0u8; 32];
+            group.bench_with_input(BenchmarkId::new("mac_only", sz), &(), |b, _| {
+                b.iter(|| {
+                    mac.mac(&k, &d, &mut out).expect("mac failed");
+                });
+            });
+        }
+
+        // mac + constant-time verify
+        {
+            let k = key.clone();
+            let d = data.clone();
+            group.bench_with_input(BenchmarkId::new("mac_then_verify", sz), &(), |b, _| {
+                b.iter(|| {
+                    mac.verify(&k, &d, &tag).expect("verify failed");
+                });
+            });
+        }
+    }
+    group.finish();
+}
+
 // ── Criterion wiring ──────────────────────────────────────────────────────────
 
 criterion_group!(
@@ -164,6 +256,8 @@ criterion_group!(
     bench_hmac_sha3,
     bench_poly1305,
     bench_cmac,
-    bench_kmac
+    bench_kmac,
+    bench_streaming_vs_oneshot,
+    bench_verify_overhead
 );
 criterion_main!(benches);

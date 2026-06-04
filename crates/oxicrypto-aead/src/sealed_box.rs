@@ -102,6 +102,7 @@ mod tests {
 
     /// Deterministic "counter" RNG — fills with incrementing bytes.
     /// Not suitable for production; fine for testing round-trips.
+    #[derive(Debug)]
     struct CounterRng {
         counter: u8,
     }
@@ -124,6 +125,7 @@ mod tests {
 
     // ── Failing RNG for error-path tests ─────────────────────────────────────
 
+    #[derive(Debug)]
     struct FailingRng;
 
     impl Rng for FailingRng {

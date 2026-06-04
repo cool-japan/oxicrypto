@@ -28,3 +28,4 @@ x448.workspace = true
 [dev-dependencies]
 rand_chacha.workspace = true
 hex.workspace = true
+oxicrypto-rand.workspace = true

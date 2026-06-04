@@ -3,10 +3,12 @@
 //! Supported algorithms:
 //! - AES-128-GCM (key: 16 bytes, nonce: 12 bytes, tag: 16 bytes)
 //! - AES-256-GCM (key: 32 bytes, nonce: 12 bytes, tag: 16 bytes)
+//! - AES-256-GCM-SIV (key: 32 bytes, nonce: 12 bytes, tag: 16 bytes)
 //! - ChaCha20-Poly1305 (key: 32 bytes, nonce: 12 bytes, tag: 16 bytes)
 
 use aws_lc_rs::aead::{
-    Aad, LessSafeKey, Nonce, UnboundKey, AES_128_GCM, AES_256_GCM, CHACHA20_POLY1305,
+    Aad, LessSafeKey, Nonce, UnboundKey, AES_128_GCM, AES_256_GCM, AES_256_GCM_SIV,
+    CHACHA20_POLY1305,
 };
 use oxicrypto_core::{Aead, CryptoError};
 
@@ -15,13 +17,14 @@ use oxicrypto_core::{Aead, CryptoError};
 enum Algo {
     Aes128Gcm,
     Aes256Gcm,
+    Aes256GcmSiv,
     ChaCha20Poly1305,
 }
 
 /// An AEAD implementation backed by `aws-lc-rs`.
 ///
-/// Construct via [`AwsLcAead::aes128_gcm`], [`AwsLcAead::aes256_gcm`], or
-/// [`AwsLcAead::chacha20_poly1305`].
+/// Construct via [`AwsLcAead::aes128_gcm`], [`AwsLcAead::aes256_gcm`],
+/// [`AwsLcAead::aes256_gcm_siv`], or [`AwsLcAead::chacha20_poly1305`].
 #[derive(Debug, Clone, Copy)]
 pub struct AwsLcAead {
     algo: Algo,
@@ -44,6 +47,16 @@ impl AwsLcAead {
         }
     }
 
+    /// AES-256-GCM-SIV: key 32 bytes, nonce 12 bytes, tag 16 bytes.
+    ///
+    /// Nonce-misuse resistant variant of AES-GCM.
+    #[must_use]
+    pub fn aes256_gcm_siv() -> Self {
+        Self {
+            algo: Algo::Aes256GcmSiv,
+        }
+    }
+
     /// ChaCha20-Poly1305: key 32 bytes, nonce 12 bytes, tag 16 bytes.
     #[must_use]
     pub fn chacha20_poly1305() -> Self {
@@ -52,10 +65,26 @@ impl AwsLcAead {
         }
     }
 
+    /// Construct from an algorithm name string.
+    ///
+    /// Recognised names: `"AES-128-GCM"`, `"AES-256-GCM"`, `"AES-256-GCM-SIV"`,
+    /// `"CHACHA20-POLY1305"`.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "AES-128-GCM" => Some(Self::aes128_gcm()),
+            "AES-256-GCM" => Some(Self::aes256_gcm()),
+            "AES-256-GCM-SIV" => Some(Self::aes256_gcm_siv()),
+            "CHACHA20-POLY1305" => Some(Self::chacha20_poly1305()),
+            _ => None,
+        }
+    }
+
     fn make_less_safe_key(&self, key: &[u8]) -> Result<LessSafeKey, CryptoError> {
         let algo = match self.algo {
             Algo::Aes128Gcm => &AES_128_GCM,
             Algo::Aes256Gcm => &AES_256_GCM,
+            Algo::Aes256GcmSiv => &AES_256_GCM_SIV,
             Algo::ChaCha20Poly1305 => &CHACHA20_POLY1305,
         };
         let unbound = UnboundKey::new(algo, key).map_err(|_| CryptoError::InvalidKey)?;
@@ -67,11 +96,18 @@ impl AwsLcAead {
     }
 }
 
+impl core::fmt::Display for AwsLcAead {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
 impl Aead for AwsLcAead {
     fn name(&self) -> &'static str {
         match self.algo {
             Algo::Aes128Gcm => "AES-128-GCM (aws-lc-rs)",
             Algo::Aes256Gcm => "AES-256-GCM (aws-lc-rs)",
+            Algo::Aes256GcmSiv => "AES-256-GCM-SIV (aws-lc-rs)",
             Algo::ChaCha20Poly1305 => "ChaCha20-Poly1305 (aws-lc-rs)",
         }
     }
@@ -80,6 +116,7 @@ impl Aead for AwsLcAead {
         match self.algo {
             Algo::Aes128Gcm => 16,
             Algo::Aes256Gcm => 32,
+            Algo::Aes256GcmSiv => 32,
             Algo::ChaCha20Poly1305 => 32,
         }
     }
@@ -191,6 +228,26 @@ mod tests {
     #[test]
     fn chacha20poly1305_round_trip() {
         round_trip(AwsLcAead::chacha20_poly1305(), &[0x42u8; 32]);
+    }
+
+    #[test]
+    fn aes256gcm_siv_round_trip() {
+        round_trip(AwsLcAead::aes256_gcm_siv(), &[0x42u8; 32]);
+    }
+
+    #[test]
+    fn from_name_known() {
+        assert!(AwsLcAead::from_name("AES-128-GCM").is_some());
+        assert!(AwsLcAead::from_name("AES-256-GCM").is_some());
+        assert!(AwsLcAead::from_name("AES-256-GCM-SIV").is_some());
+        assert!(AwsLcAead::from_name("CHACHA20-POLY1305").is_some());
+        assert!(AwsLcAead::from_name("unknown").is_none());
+    }
+
+    #[test]
+    fn display_delegates_to_name() {
+        let c = AwsLcAead::aes256_gcm();
+        assert_eq!(format!("{c}"), c.name());
     }
 
     #[test]

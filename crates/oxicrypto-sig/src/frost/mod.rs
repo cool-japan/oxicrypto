@@ -215,13 +215,13 @@ pub(crate) fn deserialize_scalar(buf: &[u8]) -> Result<Scalar, CryptoError> {
 /// Reduce a 64-byte SHA-512 digest to a [`Scalar`] mod `ℓ`, interpreting the
 /// digest as a little-endian integer (`Scalar::from_bytes_mod_order_wide`).
 #[must_use]
-fn reduce_wide(digest: [u8; 64]) -> Scalar {
+pub(crate) fn reduce_wide(digest: [u8; 64]) -> Scalar {
     Scalar::from_bytes_mod_order_wide(&digest)
 }
 
 /// SHA-512 over the concatenation of `parts`, returning the 64-byte digest.
 #[must_use]
-fn sha512_concat(parts: &[&[u8]]) -> [u8; 64] {
+pub(crate) fn sha512_concat(parts: &[&[u8]]) -> [u8; 64] {
     let mut hasher = Sha512::new();
     for part in parts {
         hasher.update(part);

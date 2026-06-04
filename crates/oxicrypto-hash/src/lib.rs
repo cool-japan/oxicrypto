@@ -15,6 +15,15 @@
 //! [`DigestStreamingAdapter`] wrapper which works with any `digest::Digest +
 //! Default` type.
 
+// `alloc` is required for `Vec`-returning functions such as `hash_to_vec`,
+// `blake3_xof`, and `parallel_hash*_xof`. When the `no_std` feature is
+// enabled, callers should prefer the alloc-free `hash_fixed` / `hash_to_array`
+// paths (see feature documentation in Cargo.toml).
+//
+// This crate always links `alloc` because the sub-modules (parallelhash, xof,
+// hash_builder) depend on it internally. The `no_std` feature flag serves as an
+// API-guidance signal rather than a link-time exclusion: it documents which
+// methods are suitable for embedded / alloc-free callers.
 extern crate alloc;
 
 #[cfg(feature = "std")]
@@ -184,6 +193,8 @@ impl Hash for Sha512_256 {
 impl Sha256 {
     /// Byte length of the SHA-256 digest output.
     pub const DIGEST_LEN: usize = 32;
+    /// Output length in bytes (alias for `DIGEST_LEN`; use for generic const contexts).
+    pub const OUTPUT_LEN: usize = 32;
     /// SHA-256 block size in bytes (FIPS 180-4).
     pub const BLOCK_SIZE: usize = 64;
 }
@@ -191,6 +202,8 @@ impl Sha256 {
 impl Sha384 {
     /// Byte length of the SHA-384 digest output.
     pub const DIGEST_LEN: usize = 48;
+    /// Output length in bytes (alias for `DIGEST_LEN`; use for generic const contexts).
+    pub const OUTPUT_LEN: usize = 48;
     /// SHA-384 block size in bytes (FIPS 180-4).
     pub const BLOCK_SIZE: usize = 128;
 }
@@ -198,6 +211,8 @@ impl Sha384 {
 impl Sha512 {
     /// Byte length of the SHA-512 digest output.
     pub const DIGEST_LEN: usize = 64;
+    /// Output length in bytes (alias for `DIGEST_LEN`; use for generic const contexts).
+    pub const OUTPUT_LEN: usize = 64;
     /// SHA-512 block size in bytes (FIPS 180-4).
     pub const BLOCK_SIZE: usize = 128;
 }
@@ -205,6 +220,8 @@ impl Sha512 {
 impl Sha512_256 {
     /// Byte length of the SHA-512/256 digest output.
     pub const DIGEST_LEN: usize = 32;
+    /// Output length in bytes (alias for `DIGEST_LEN`; use for generic const contexts).
+    pub const OUTPUT_LEN: usize = 32;
     /// SHA-512/256 block size in bytes (FIPS 180-4).
     pub const BLOCK_SIZE: usize = 128;
 }
@@ -290,6 +307,8 @@ impl Hash for Sha3_512 {
 impl Sha3_256 {
     /// Byte length of the SHA3-256 digest output.
     pub const DIGEST_LEN: usize = 32;
+    /// Output length in bytes (alias for `DIGEST_LEN`; use for generic const contexts).
+    pub const OUTPUT_LEN: usize = 32;
     /// SHA3-256 block (rate) size in bytes (FIPS 202).
     pub const BLOCK_SIZE: usize = 136;
 }
@@ -297,6 +316,8 @@ impl Sha3_256 {
 impl Sha3_384 {
     /// Byte length of the SHA3-384 digest output.
     pub const DIGEST_LEN: usize = 48;
+    /// Output length in bytes (alias for `DIGEST_LEN`; use for generic const contexts).
+    pub const OUTPUT_LEN: usize = 48;
     /// SHA3-384 block (rate) size in bytes (FIPS 202).
     pub const BLOCK_SIZE: usize = 104;
 }
@@ -304,6 +325,8 @@ impl Sha3_384 {
 impl Sha3_512 {
     /// Byte length of the SHA3-512 digest output.
     pub const DIGEST_LEN: usize = 64;
+    /// Output length in bytes (alias for `DIGEST_LEN`; use for generic const contexts).
+    pub const OUTPUT_LEN: usize = 64;
     /// SHA3-512 block (rate) size in bytes (FIPS 202).
     pub const BLOCK_SIZE: usize = 72;
 }
@@ -387,6 +410,8 @@ impl Hash for Blake2s256 {
 impl Blake2b256 {
     /// Byte length of the BLAKE2b-256 digest output.
     pub const DIGEST_LEN: usize = 32;
+    /// Output length in bytes (alias for `DIGEST_LEN`; use for generic const contexts).
+    pub const OUTPUT_LEN: usize = 32;
     /// BLAKE2b block size in bytes (RFC 7693).
     pub const BLOCK_SIZE: usize = 128;
 }
@@ -394,6 +419,8 @@ impl Blake2b256 {
 impl Blake2b512 {
     /// Byte length of the BLAKE2b-512 digest output.
     pub const DIGEST_LEN: usize = 64;
+    /// Output length in bytes (alias for `DIGEST_LEN`; use for generic const contexts).
+    pub const OUTPUT_LEN: usize = 64;
     /// BLAKE2b block size in bytes (RFC 7693).
     pub const BLOCK_SIZE: usize = 128;
 }
@@ -401,6 +428,8 @@ impl Blake2b512 {
 impl Blake2s256 {
     /// Byte length of the BLAKE2s-256 digest output.
     pub const DIGEST_LEN: usize = 32;
+    /// Output length in bytes (alias for `DIGEST_LEN`; use for generic const contexts).
+    pub const OUTPUT_LEN: usize = 32;
     /// BLAKE2s block size in bytes (RFC 7693).
     pub const BLOCK_SIZE: usize = 64;
 }
@@ -440,6 +469,8 @@ impl Hash for Blake3 {
 impl Blake3 {
     /// Byte length of the BLAKE3 default digest output.
     pub const DIGEST_LEN: usize = 32;
+    /// Output length in bytes (alias for `DIGEST_LEN`; use for generic const contexts).
+    pub const OUTPUT_LEN: usize = 32;
     /// BLAKE3 block size in bytes.
     pub const BLOCK_SIZE: usize = 64;
 }
@@ -616,6 +647,162 @@ pub fn blake3_derive_key(context: &str, key_material: &[u8]) -> [u8; 32] {
     blake3::derive_key(context, key_material)
 }
 
+// ── Alloc-free fixed-array hash helpers ────────────────────────────────────
+//
+// These inherent methods compute a hash and write into a stack-allocated
+// `[u8; N]` array without any heap allocation. They are the preferred API
+// when the `no_std` feature is enabled (or in any context where `alloc` is
+// undesirable).
+//
+// All concrete hash types implement `hash_fixed<N>()` which is equivalent
+// to `Hash::hash_to_array::<N>()` from `oxicrypto-core` but surfaced here
+// as an ergonomic shorthand directly on the type.
+//
+// Usage (alloc-free):
+//
+// ```rust
+// let digest: [u8; 32] = Sha256.hash_fixed(b"hello");
+// let digest: [u8; 64] = Sha512.hash_fixed(b"hello");
+// let digest: [u8; 32] = Blake3.hash_fixed(b"hello");
+// ```
+//
+// The `no_std` feature flag makes this distinction visible at the type level:
+// with `no_std` enabled, `Hash::hash_to_vec` (which requires `alloc`) is
+// documented as unavailable and callers should use `hash_fixed` or
+// `Hash::hash_to_array` instead.
+
+impl Sha256 {
+    /// Hash `msg` and return the 32-byte SHA-256 digest as a fixed-size array.
+    ///
+    /// Alloc-free alternative to [`Hash::hash_to_vec`].
+    ///
+    /// # `no_std` note
+    ///
+    /// When the `no_std` feature is enabled, prefer this method over
+    /// `hash_to_vec`, which requires heap allocation.
+    #[inline]
+    #[must_use]
+    pub fn hash_fixed(&self, msg: &[u8]) -> [u8; 32] {
+        sha2::Sha256::digest(msg).into()
+    }
+}
+
+impl Sha384 {
+    /// Hash `msg` and return the 48-byte SHA-384 digest as a fixed-size array.
+    ///
+    /// Alloc-free alternative to [`Hash::hash_to_vec`].
+    #[inline]
+    #[must_use]
+    pub fn hash_fixed(&self, msg: &[u8]) -> [u8; 48] {
+        sha2::Sha384::digest(msg).into()
+    }
+}
+
+impl Sha512 {
+    /// Hash `msg` and return the 64-byte SHA-512 digest as a fixed-size array.
+    ///
+    /// Alloc-free alternative to [`Hash::hash_to_vec`].
+    #[inline]
+    #[must_use]
+    pub fn hash_fixed(&self, msg: &[u8]) -> [u8; 64] {
+        sha2::Sha512::digest(msg).into()
+    }
+}
+
+impl Sha512_256 {
+    /// Hash `msg` and return the 32-byte SHA-512/256 digest as a fixed-size array.
+    ///
+    /// Alloc-free alternative to [`Hash::hash_to_vec`].
+    #[inline]
+    #[must_use]
+    pub fn hash_fixed(&self, msg: &[u8]) -> [u8; 32] {
+        sha2::Sha512_256::digest(msg).into()
+    }
+}
+
+impl Sha3_256 {
+    /// Hash `msg` and return the 32-byte SHA3-256 digest as a fixed-size array.
+    ///
+    /// Alloc-free alternative to [`Hash::hash_to_vec`].
+    #[inline]
+    #[must_use]
+    pub fn hash_fixed(&self, msg: &[u8]) -> [u8; 32] {
+        sha3::Sha3_256::digest(msg).into()
+    }
+}
+
+impl Sha3_384 {
+    /// Hash `msg` and return the 48-byte SHA3-384 digest as a fixed-size array.
+    ///
+    /// Alloc-free alternative to [`Hash::hash_to_vec`].
+    #[inline]
+    #[must_use]
+    pub fn hash_fixed(&self, msg: &[u8]) -> [u8; 48] {
+        sha3::Sha3_384::digest(msg).into()
+    }
+}
+
+impl Sha3_512 {
+    /// Hash `msg` and return the 64-byte SHA3-512 digest as a fixed-size array.
+    ///
+    /// Alloc-free alternative to [`Hash::hash_to_vec`].
+    #[inline]
+    #[must_use]
+    pub fn hash_fixed(&self, msg: &[u8]) -> [u8; 64] {
+        sha3::Sha3_512::digest(msg).into()
+    }
+}
+
+impl Blake2b256 {
+    /// Hash `msg` and return the 32-byte BLAKE2b-256 digest as a fixed-size array.
+    ///
+    /// Alloc-free alternative to [`Hash::hash_to_vec`].
+    #[inline]
+    #[must_use]
+    pub fn hash_fixed(&self, msg: &[u8]) -> [u8; 32] {
+        blake2::Blake2b256::digest(msg).into()
+    }
+}
+
+impl Blake2b512 {
+    /// Hash `msg` and return the 64-byte BLAKE2b-512 digest as a fixed-size array.
+    ///
+    /// Alloc-free alternative to [`Hash::hash_to_vec`].
+    #[inline]
+    #[must_use]
+    pub fn hash_fixed(&self, msg: &[u8]) -> [u8; 64] {
+        blake2::Blake2b512::digest(msg).into()
+    }
+}
+
+impl Blake2s256 {
+    /// Hash `msg` and return the 32-byte BLAKE2s-256 digest as a fixed-size array.
+    ///
+    /// Alloc-free alternative to [`Hash::hash_to_vec`].
+    #[inline]
+    #[must_use]
+    pub fn hash_fixed(&self, msg: &[u8]) -> [u8; 32] {
+        blake2::Blake2s256::digest(msg).into()
+    }
+}
+
+impl Blake3 {
+    /// Hash `msg` and return the 32-byte BLAKE3 digest as a fixed-size array.
+    ///
+    /// Alloc-free alternative to [`Hash::hash_to_vec`].
+    ///
+    /// # `no_std` note
+    ///
+    /// When the `no_std` feature is enabled, this method (along with
+    /// `blake3_keyed_hash` and `blake3_derive_key`) is the preferred API
+    /// since it avoids heap allocation entirely.
+    #[inline]
+    #[must_use]
+    pub fn hash_fixed(&self, msg: &[u8]) -> [u8; 32] {
+        *blake3::hash(msg).as_bytes()
+    }
+}
+
 // ── BLAKE3 XOF (extendable output) ───────────────────────────────────────────
 
 /// Hash `msg` with BLAKE3 and return `output_len` bytes.
@@ -623,6 +810,13 @@ pub fn blake3_derive_key(context: &str, key_material: &[u8]) -> [u8; 32] {
 /// The first 32 bytes are identical to the standard BLAKE3 hash of `msg`.
 /// Requesting more than 32 bytes extends the output using BLAKE3's XOF
 /// (extendable output function) mode.
+///
+/// # `no_std` note
+///
+/// This function allocates a `Vec<u8>`. When the `no_std` feature is enabled,
+/// use [`Blake3::hash_fixed`] for a 32-byte alloc-free alternative, or write
+/// the XOF output directly into a caller-provided `&mut [u8]` using
+/// `blake3::Hasher::finalize_xof().fill()`.
 pub fn blake3_xof(msg: &[u8], output_len: usize) -> Vec<u8> {
     let mut out = alloc::vec![0u8; output_len];
     let mut reader = blake3::Hasher::new().update(msg).finalize_xof();
@@ -637,10 +831,7 @@ mod tests {
     use super::*;
 
     fn hex_decode(s: &str) -> Vec<u8> {
-        (0..s.len())
-            .step_by(2)
-            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("valid hex"))
-            .collect()
+        hex::decode(s).unwrap_or_else(|e| panic!("invalid hex string {s:?}: {e}"))
     }
 
     // ── SHA-256 ──────────────────────────────────────────────────────────────
@@ -1022,6 +1213,38 @@ mod tests {
         assert!(out.is_empty());
     }
 
+    // ── OUTPUT_LEN inherent constants (WI-A: const-assoc-consts) ────────────
+
+    #[test]
+    fn test_output_len_consts() {
+        assert_eq!(Sha256::OUTPUT_LEN, 32);
+        assert_eq!(Sha384::OUTPUT_LEN, 48);
+        assert_eq!(Sha512::OUTPUT_LEN, 64);
+        assert_eq!(Sha512_256::OUTPUT_LEN, 32);
+        assert_eq!(Sha3_256::OUTPUT_LEN, 32);
+        assert_eq!(Sha3_384::OUTPUT_LEN, 48);
+        assert_eq!(Sha3_512::OUTPUT_LEN, 64);
+        assert_eq!(Blake2b256::OUTPUT_LEN, 32);
+        assert_eq!(Blake2b512::OUTPUT_LEN, 64);
+        assert_eq!(Blake2s256::OUTPUT_LEN, 32);
+        assert_eq!(Blake3::OUTPUT_LEN, 32);
+    }
+
+    #[test]
+    fn test_output_len_matches_runtime_output_len() {
+        assert_eq!(Sha256::OUTPUT_LEN, Sha256.output_len());
+        assert_eq!(Sha384::OUTPUT_LEN, Sha384.output_len());
+        assert_eq!(Sha512::OUTPUT_LEN, Sha512.output_len());
+        assert_eq!(Sha512_256::OUTPUT_LEN, Sha512_256.output_len());
+        assert_eq!(Sha3_256::OUTPUT_LEN, Sha3_256.output_len());
+        assert_eq!(Sha3_384::OUTPUT_LEN, Sha3_384.output_len());
+        assert_eq!(Sha3_512::OUTPUT_LEN, Sha3_512.output_len());
+        assert_eq!(Blake2b256::OUTPUT_LEN, Blake2b256.output_len());
+        assert_eq!(Blake2b512::OUTPUT_LEN, Blake2b512.output_len());
+        assert_eq!(Blake2s256::OUTPUT_LEN, Blake2s256.output_len());
+        assert_eq!(Blake3::OUTPUT_LEN, Blake3.output_len());
+    }
+
     // ── DIGEST_LEN / BLOCK_SIZE constants ────────────────────────────────────
 
     #[test]
@@ -1203,5 +1426,125 @@ mod tests {
             expected.as_slice(),
             "io::Write result must match one-shot"
         );
+    }
+
+    // ── hash_fixed alloc-free path (no_std alternative to hash_to_vec) ────────
+    //
+    // These tests verify that the `hash_fixed` inherent methods (the alloc-free
+    // alternative to `hash_to_vec`) produce identical digests to the `Hash`
+    // trait path. When the `no_std` feature is enabled, callers use `hash_fixed`
+    // or `Hash::hash_to_array` instead of `hash_to_vec`.
+
+    #[test]
+    fn sha256_hash_fixed_matches_hash_trait() {
+        // SHA-256 fixed-array path must match the trait-based one-shot hash.
+        let msg = b"alloc-free sha256 test";
+        let fixed: [u8; 32] = Sha256.hash_fixed(msg);
+        let via_trait = Sha256.hash_to_vec(msg).expect("hash_to_vec");
+        assert_eq!(&fixed[..], via_trait.as_slice());
+    }
+
+    #[test]
+    fn sha384_hash_fixed_matches_hash_trait() {
+        let msg = b"alloc-free sha384 test";
+        let fixed: [u8; 48] = Sha384.hash_fixed(msg);
+        let via_trait = Sha384.hash_to_vec(msg).expect("hash_to_vec");
+        assert_eq!(&fixed[..], via_trait.as_slice());
+    }
+
+    #[test]
+    fn sha512_hash_fixed_matches_hash_trait() {
+        let msg = b"alloc-free sha512 test";
+        let fixed: [u8; 64] = Sha512.hash_fixed(msg);
+        let via_trait = Sha512.hash_to_vec(msg).expect("hash_to_vec");
+        assert_eq!(&fixed[..], via_trait.as_slice());
+    }
+
+    #[test]
+    fn sha512_256_hash_fixed_matches_hash_trait() {
+        let msg = b"alloc-free sha512/256 test";
+        let fixed: [u8; 32] = Sha512_256.hash_fixed(msg);
+        let via_trait = Sha512_256.hash_to_vec(msg).expect("hash_to_vec");
+        assert_eq!(&fixed[..], via_trait.as_slice());
+    }
+
+    #[test]
+    fn sha3_256_hash_fixed_matches_hash_trait() {
+        let msg = b"alloc-free sha3-256 test";
+        let fixed: [u8; 32] = Sha3_256.hash_fixed(msg);
+        let via_trait = Sha3_256.hash_to_vec(msg).expect("hash_to_vec");
+        assert_eq!(&fixed[..], via_trait.as_slice());
+    }
+
+    #[test]
+    fn sha3_384_hash_fixed_matches_hash_trait() {
+        let msg = b"alloc-free sha3-384 test";
+        let fixed: [u8; 48] = Sha3_384.hash_fixed(msg);
+        let via_trait = Sha3_384.hash_to_vec(msg).expect("hash_to_vec");
+        assert_eq!(&fixed[..], via_trait.as_slice());
+    }
+
+    #[test]
+    fn sha3_512_hash_fixed_matches_hash_trait() {
+        let msg = b"alloc-free sha3-512 test";
+        let fixed: [u8; 64] = Sha3_512.hash_fixed(msg);
+        let via_trait = Sha3_512.hash_to_vec(msg).expect("hash_to_vec");
+        assert_eq!(&fixed[..], via_trait.as_slice());
+    }
+
+    #[test]
+    fn blake2b256_hash_fixed_matches_hash_trait() {
+        let msg = b"alloc-free blake2b256 test";
+        let fixed: [u8; 32] = Blake2b256.hash_fixed(msg);
+        let via_trait = Blake2b256.hash_to_vec(msg).expect("hash_to_vec");
+        assert_eq!(&fixed[..], via_trait.as_slice());
+    }
+
+    #[test]
+    fn blake2b512_hash_fixed_matches_hash_trait() {
+        let msg = b"alloc-free blake2b512 test";
+        let fixed: [u8; 64] = Blake2b512.hash_fixed(msg);
+        let via_trait = Blake2b512.hash_to_vec(msg).expect("hash_to_vec");
+        assert_eq!(&fixed[..], via_trait.as_slice());
+    }
+
+    #[test]
+    fn blake2s256_hash_fixed_matches_hash_trait() {
+        let msg = b"alloc-free blake2s256 test";
+        let fixed: [u8; 32] = Blake2s256.hash_fixed(msg);
+        let via_trait = Blake2s256.hash_to_vec(msg).expect("hash_to_vec");
+        assert_eq!(&fixed[..], via_trait.as_slice());
+    }
+
+    #[test]
+    fn blake3_hash_fixed_matches_hash_trait() {
+        let msg = b"alloc-free blake3 test";
+        let fixed: [u8; 32] = Blake3.hash_fixed(msg);
+        let via_trait = Blake3.hash_to_vec(msg).expect("hash_to_vec");
+        assert_eq!(&fixed[..], via_trait.as_slice());
+    }
+
+    #[test]
+    fn hash_fixed_known_vectors() {
+        // Cross-verify hash_fixed against known-good RFC/NIST vectors.
+        // SHA-256("abc") per FIPS 180-4 App B.1:
+        let sha256_abc: [u8; 32] = Sha256.hash_fixed(b"abc");
+        let expected_sha256 =
+            hex_decode("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        assert_eq!(sha256_abc.as_ref(), expected_sha256.as_slice());
+        // BLAKE3("abc") per official test vectors:
+        let blake3_abc: [u8; 32] = Blake3.hash_fixed(b"abc");
+        let expected_blake3 =
+            hex_decode("6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85");
+        assert_eq!(blake3_abc.as_ref(), expected_blake3.as_slice());
+    }
+
+    #[test]
+    fn hash_fixed_empty_input() {
+        // SHA-256("") per FIPS 180-4:
+        let fixed: [u8; 32] = Sha256.hash_fixed(b"");
+        let expected =
+            hex_decode("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        assert_eq!(fixed.as_ref(), expected.as_slice());
     }
 }

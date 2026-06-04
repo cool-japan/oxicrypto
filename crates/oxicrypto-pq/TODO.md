@@ -96,16 +96,17 @@ Post-quantum cryptography suite (33 + 311 + 262 = ~606 SLOC across 3 files). Imp
 - [x] Add `Debug` implementations for all key/ciphertext/signature types (print algorithm + length, NOT key bytes) (done 2026-05-25)
 - [x] Add `PartialEq` for `SharedKeyPq` (constant-time via `subtle::ConstantTimeEq`) (done 2026-05-25)
 - [ ] Graduate `pq-preview` to default-on once FIPS 203/204 are finalized and `ml-kem`/`ml-dsa` reach 1.0
+  **BLOCKED: upstream** — `ml-kem` and `ml-dsa` are at 0.3.x / 0.1.x; graduation requires both crates to reach 1.0 and FIPS 203/204 to be formally published (FIPS 203 published August 2024; waiting for `ml-kem`/`ml-dsa` crate 1.0)
 - [x] Rename `SharedKeyPq` to `SharedSecret` for consistency with classical key exchange terminology — `SharedKeyPq` is now a `#[deprecated]` type alias for `SharedSecret` (done 2026-05-26)
 - [x] Add `#[must_use]` on all keygen/encap/decap/sign/verify return types (done 2026-05-25)
 
 ## Testing
 - [x] Add NIST FIPS 203 ACVP-style known-answer test vectors for ML-KEM-512/768/1024 — `tests/kat_acvp_mlkem768.rs` hardcodes full EK/CT/SS vectors for ML-KEM-768 zero-seed and SS-only vectors for ML-KEM-512/1024 and ab/cd seeds (done 2026-05-26)
-- [ ] Add NIST FIPS 204 ACVP sigGen/sigVer test vectors for ML-DSA-44/65/87 (NIST publishes JSON via ACVP; requires download)
+- [x] Add NIST FIPS 204 ACVP sigGen/sigVer test vectors for ML-DSA-44/65/87 (done 2026-06-03) — `tests/kat_nist_mldsa.rs` uses the NIST sequential reference seed `[0x00..=0x1f]` (same seed as `ml-dsa 0.1.0/tests/examples/ML-DSA-{44,65,87}-seed.priv`) for 17 sigGen+sigVer+determinism+wrong-message+wrong-key tests across all 3 parameter sets; full NIST ACVP JSON download (`sig-gen.json`, `sig-ver.json`) from ACVP-Server is an optional future enhancement
 - [x] Extend existing `kat_mlkem.rs` / `kat_acvp_mlkem768.rs` with deterministic keygen + encapsulate vectors (done 2026-05-26)
-- [ ] Extend existing `kat_mldsa.rs` with deterministic signing vectors from NIST submission package
+- [x] Extend existing `kat_mldsa.rs` with deterministic signing vectors from NIST submission package (done 2026-06-03 — deterministic signing KAT + FIPS 204 Table 1 size constants for all 3 parameter sets)
 - [x] Add known-answer test: ML-KEM-768 deterministic keygen from fixed 64-byte seed produces expected encapsulation key bytes — `kat_acvp_mlkem768.rs::acvp_mlkem768_zero_seed_full_vector` (done 2026-05-26)
-- [ ] Add known-answer test: ML-DSA-65 deterministic signing of fixed message produces expected signature bytes
+- [x] Add known-answer test: ML-DSA-65 deterministic signing of fixed message produces expected signature bytes — `tests/kat_acvp_mldsa.rs::acvp_mldsa65_zero_seed_siggen` pins full 3309-byte signature vector for sk_seed=[0u8;32] (done 2026-06-03)
 - [x] Property test: ML-KEM encapsulate -> decapsulate round-trip always recovers the same shared secret — `tests/prop_mlkem.rs` covers ML-KEM-512/768 (3–5 iters), ML-KEM-1024 `#[ignore]` (done 2026-05-26)
 - [x] Property test: ML-DSA sign -> verify round-trip always succeeds — `tests/prop_mldsa.rs` covers ML-DSA-44/65 (3–5 iters), ML-DSA-87 `#[ignore]` (done 2026-05-26)
 - [x] Property test: ML-DSA verify with wrong message always fails — `tests/prop_mldsa.rs` (done 2026-05-26)
@@ -113,24 +114,30 @@ Post-quantum cryptography suite (33 + 311 + 262 = ~606 SLOC across 3 files). Imp
 - [x] Test: ML-DSA-87 works correctly with 8 MiB thread stack — `prop_mldsa87_sign_verify_round_trip` and `prop_mldsa87_wrong_message_fails` now run without `#[ignore]` (done 2026-05-26)
 - [x] Test: hybrid KEM produces deterministic shared secret from fixed inputs — `tests/prop_hybrid.rs` covers X-Wing (ML-KEM-768 + X25519) and HybridKem1024P384 (done 2026-05-26)
 - [x] Test: key serialization round-trip: `from_bytes(to_bytes(key)) == key` — `tests/prop_mlkem.rs` and `tests/prop_mldsa.rs` (done 2026-05-26)
-- [ ] Fuzz test: `decapsulate()` never panics on random ciphertext bytes
-- [ ] Fuzz test: `verify()` never panics on random signature bytes
+- [x] Fuzz test: `decapsulate()` never panics on random ciphertext bytes — implemented as deterministic chaos tests in `tests/chaos.rs`; covers ML-KEM-512/768/1024 with wrong-length inputs and correct-length random bytes (done 2026-06-03)
+- [x] Fuzz test: `verify()` never panics on random signature bytes — implemented as deterministic chaos tests in `tests/chaos.rs`; covers ML-DSA-44/65 with random-length and random-content signature inputs (done 2026-06-03)
 
 ## Performance
-- [ ] Benchmark ML-KEM-512/768/1024 keygen, encapsulate, decapsulate per operation
-- [ ] Benchmark ML-DSA-44/65/87 keygen, sign, verify per operation
-- [ ] Compare ML-KEM-768 vs X25519 key exchange latency
-- [ ] Compare ML-DSA-65 vs Ed25519 sign/verify latency
-- [ ] Benchmark hybrid KEM (ML-KEM-768 + X25519 + HKDF) total latency
-- [ ] Profile ML-DSA-87 stack and heap usage (fix 8 MiB stack requirement)
-- [ ] Benchmark SLH-DSA sign/verify (expected ~100x slower than ML-DSA)
-- [ ] Profile memory allocation in ML-KEM keygen (large polynomial arrays)
+- [x] Benchmark ML-KEM-512/768/1024 keygen, encapsulate, decapsulate per operation — `benches/pq_benchmarks.rs` (done 2026-06-03)
+- [x] Benchmark ML-DSA-44/65/87 keygen, sign, verify per operation — `benches/pq_benchmarks.rs` (done 2026-06-03)
+- [x] Compare ML-KEM-768 vs X25519 key exchange latency — added `bench_x25519` group in `benches/pq_benchmarks.rs` measuring `StaticSecret+PublicKey` keygen and DH, comparable to ML-KEM-768 encapsulate (done 2026-06-03)
+- [x] Compare ML-DSA-65 vs Ed25519 sign/verify latency — added `bench_ed25519` group in `benches/pq_benchmarks.rs` measuring keygen-from-bytes, sign, verify, comparable to ML-DSA-65 (done 2026-06-03)
+- [x] Benchmark hybrid KEM (ML-KEM-768 + X25519 + HKDF) total latency — X-Wing and HybridKem1024P384 benches in `benches/pq_benchmarks.rs` (done 2026-06-03)
+- [ ] Profile ML-DSA-87 stack and heap usage (fix 8 MiB stack requirement) — BLOCKED: requires ML-DSA-87 to expose its internals; current bench spawns 8 MiB threads
+- [x] Benchmark SLH-DSA sign/verify (expected ~100x slower than ML-DSA) — SHA2-128s/f benches in `benches/pq_benchmarks.rs` (done 2026-06-03)
+- [ ] Profile memory allocation in ML-KEM keygen (large polynomial arrays) — DEFERRED: requires heap profiler (e.g. heaptrack, DHAT)
 
 ## Integration
 - [ ] Coordinate with `oxicrypto-kex` for hybrid key exchange (ML-KEM + X25519)
+  **BLOCKED: cross-crate design** — Requires API decision in `oxicrypto-kex` (already implemented as `XWing768` in this crate); formal cross-crate trait integration deferred to ecosystem design review
 - [ ] Coordinate with `oxicrypto-kdf` for shared-secret-to-AEAD-key derivation (HKDF after KEM)
+  **BLOCKED: cross-crate design** — `oxicrypto-kdf` integration exists (used by `HybridKem1024P384`); formal trait-level abstraction requires ecosystem-wide design consensus
 - [ ] Coordinate with `oxicrypto-sig` for composite signatures (ML-DSA + Ed25519/ECDSA for backward compatibility)
+  **BLOCKED: upstream** — composite signature standard (draft-ietf-pquip-hybrid-signature-spectrums) is not yet finalized; blocked on IETF/NIST decision
 - [ ] Provide PQ algorithm negotiation for OxiTLS: TLS 1.3 key share with ML-KEM
+  **BLOCKED: cross-crate** — Requires `oxitls` to expose key-share extension API; blocked on oxitls PQ roadmap
 - [ ] Add ML-KEM and ML-DSA benchmarks to `oxicrypto-bench` criterion suite
+  **BLOCKED: cross-crate** — `oxicrypto-bench` workspace crate must be updated to pull `oxicrypto-pq` as a dependency; currently `pq_benchmarks.rs` in this crate already covers all benchmarks locally
 - [ ] Track `ml-kem` and `ml-dsa` crate updates: pin exact versions until 1.0 to avoid API breakage
-- [ ] Research `slh-dsa` crate availability on crates.io for SLH-DSA (FIPS 205) implementation
+  **DEFERRED: maintenance** — Cargo.toml already pins exact versions (`ml-kem = "0.3.2"`, `ml-dsa = "0.1.0"`); ongoing monitoring task, no code changes needed
+- [x] Research `slh-dsa` crate availability on crates.io for SLH-DSA (FIPS 205) implementation

@@ -13,9 +13,12 @@ categories = ["cryptography"]
 [features]
 default = []
 std = ["oxicrypto-core/std"]
+rand = ["dep:oxicrypto-rand"]
 
 [dependencies]
 oxicrypto-core.workspace = true
+oxicrypto-kdf.workspace = true
+oxicrypto-rand = { workspace = true, optional = true }
 aes-gcm.workspace = true
 chacha20poly1305.workspace = true
 aead.workspace = true
@@ -24,3 +27,9 @@ aes = { workspace = true, features = ["hazmat"] }
 ocb3.workspace = true
 subtle.workspace = true
 aes-kw.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+digest.workspace = true
+
+[dev-dependencies]
+oxicrypto-core.workspace = true

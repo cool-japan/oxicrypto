@@ -597,14 +597,18 @@ impl DecapKey1024 {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Kem trait helpers: OS-seeded RNG
+//  Kem trait helpers: OS-seeded RNG via OxiRng
 // ─────────────────────────────────────────────────────────────────────────────
 
-fn kem_os_rng() -> Result<rand_chacha::ChaCha20Rng, oxicrypto_core::CryptoError> {
-    use rand_core::SeedableRng;
-    let mut seed = [0u8; 32];
-    getrandom::fill(&mut seed).map_err(|_| oxicrypto_core::CryptoError::Rng)?;
-    Ok(rand_chacha::ChaCha20Rng::from_seed(seed))
+/// Create an OS-seeded RNG suitable for use with ML-KEM / ML-DSA APIs that
+/// require `CryptoRng` (i.e. `TryCryptoRng<Error = Infallible>`).
+///
+/// `OxiRng` implements `TryCryptoRng` with `Error = CryptoError`.  Wrapping it
+/// in [`rand_core::UnwrapErr`] converts it to `CryptoRng` by mapping errors to
+/// panics — acceptable here because an OS RNG failure is a fatal system error.
+fn kem_os_rng() -> Result<rand_core::UnwrapErr<oxicrypto_rand::OxiRng>, oxicrypto_core::CryptoError>
+{
+    oxicrypto_rand::OxiRng::new().map(rand_core::UnwrapErr)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -45,6 +45,7 @@ pub enum MacAlgo {
 /// anyway).  All other variants have fixed output lengths and cannot fail.
 #[cfg(feature = "pure")]
 #[must_use]
+#[inline(always)]
 pub fn mac_impl(algo: MacAlgo) -> oxicrypto_core::Box<dyn oxicrypto_core::Mac + Send + Sync> {
     match algo {
         MacAlgo::HmacSha256 => oxicrypto_core::Box::new(oxicrypto_mac::HmacSha256),

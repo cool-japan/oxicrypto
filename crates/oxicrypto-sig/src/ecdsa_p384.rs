@@ -11,9 +11,11 @@ use p384::ecdsa::{
     Signature, SigningKey, VerifyingKey,
 };
 
+use crate::SignatureFormat;
+
 /// ECDSA P-384 signing key.
 pub struct EcdsaP384Signer {
-    signing_key: SigningKey,
+    pub(crate) signing_key: SigningKey,
 }
 
 impl EcdsaP384Signer {
@@ -23,11 +25,28 @@ impl EcdsaP384Signer {
         Ok(Self { signing_key })
     }
 
-    /// Sign `message` and return DER-encoded signature bytes.
+    /// Signs `message` using ECDSA with deterministic nonce generation per RFC 6979.
+    ///
+    /// Returns DER-encoded signature bytes. The SHA-384 digest is computed
+    /// internally by the signing algorithm.
     #[must_use = "signature result must be checked"]
     pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let sig: Signature = EcdsaSigner::sign(&self.signing_key, message);
         Ok(sig.to_der().as_bytes().to_vec())
+    }
+
+    /// Sign `message` in the given [`SignatureFormat`] encoding.
+    ///
+    /// Uses deterministic nonce generation per RFC 6979.
+    /// - [`SignatureFormat::Der`]: ASN.1 DER-encoded (variable length, ~102–104 bytes).
+    /// - [`SignatureFormat::Raw`]: Fixed 96-byte `r ‖ s` big-endian.
+    #[must_use = "signature result must be checked"]
+    pub fn sign_fmt(&self, message: &[u8], fmt: SignatureFormat) -> Result<Vec<u8>, CryptoError> {
+        let sig: Signature = EcdsaSigner::sign(&self.signing_key, message);
+        match fmt {
+            SignatureFormat::Der => Ok(sig.to_der().as_bytes().to_vec()),
+            SignatureFormat::Raw => Ok(<[u8]>::to_vec(sig.to_bytes().as_ref())),
+        }
     }
 
     /// Return the corresponding verifying key as compressed SEC1 bytes (49 bytes).
@@ -39,7 +58,7 @@ impl EcdsaP384Signer {
 
 /// ECDSA P-384 verifying key.
 pub struct EcdsaP384Verifier {
-    verifying_key: VerifyingKey,
+    pub(crate) verifying_key: VerifyingKey,
 }
 
 impl EcdsaP384Verifier {
@@ -56,5 +75,97 @@ impl EcdsaP384Verifier {
         let sig = Signature::from_der(signature).map_err(|_| CryptoError::InvalidTag)?;
         EcdsaVerifier::verify(&self.verifying_key, message, &sig)
             .map_err(|_| CryptoError::InvalidTag)
+    }
+
+    /// Verify a signature over `message` in the given [`SignatureFormat`] encoding.
+    ///
+    /// - [`SignatureFormat::Der`]: expects ASN.1 DER-encoded bytes.
+    /// - [`SignatureFormat::Raw`]: expects exactly 96 bytes of `r ‖ s` big-endian.
+    #[must_use = "verification result must be checked"]
+    pub fn verify_fmt(
+        &self,
+        message: &[u8],
+        sig: &[u8],
+        fmt: SignatureFormat,
+    ) -> Result<(), CryptoError> {
+        let signature: Signature = match fmt {
+            SignatureFormat::Der => {
+                Signature::from_der(sig).map_err(|_| CryptoError::InvalidTag)?
+            }
+            SignatureFormat::Raw => {
+                if sig.len() != 96 {
+                    return Err(CryptoError::InvalidTag);
+                }
+                // Parse r || s (each 48 bytes big-endian) as a P-384 signature.
+                let mut r = [0u8; 48];
+                let mut s = [0u8; 48];
+                r.copy_from_slice(&sig[..48]);
+                s.copy_from_slice(&sig[48..]);
+                Signature::from_scalars(r, s).map_err(|_| CryptoError::InvalidTag)?
+            }
+        };
+        EcdsaVerifier::verify(&self.verifying_key, message, &signature)
+            .map_err(|_| CryptoError::InvalidTag)
+    }
+
+    /// Verify a pre-computed message hash.
+    ///
+    /// `hash` must be the raw 48-byte SHA-384 output. Internally converts the hash
+    /// into a scalar and performs ECDSA verification via the `ecdsa::hazmat::VerifyPrimitive`
+    /// interface. The `signature` must be DER-encoded.
+    ///
+    /// **Note:** Use of pre-computed hashes should be limited to large-message scenarios
+    /// where you have already computed the hash. Prefer [`verify`](Self::verify) for
+    /// standard use cases.
+    #[must_use = "verification result must be checked"]
+    pub fn verify_prehash(&self, hash: &[u8], sig: &[u8]) -> Result<(), CryptoError> {
+        use p384::ecdsa::signature::hazmat::PrehashVerifier;
+        let signature = Signature::from_der(sig).map_err(|_| CryptoError::InvalidTag)?;
+        self.verifying_key
+            .verify_prehash(hash, &signature)
+            .map_err(|_| CryptoError::InvalidTag)
+    }
+
+    /// Verify a signature over `message` using a caller-supplied [`Hash`] implementation.
+    ///
+    /// Computes the digest via `hash.hash_to_vec(message)`, then calls `verify_prehash`.
+    /// This allows callers to substitute any `oxicrypto-core` compatible hash algorithm
+    /// without hardcoding the digest algorithm inside this crate.
+    ///
+    /// The `signature` must be DER-encoded.
+    ///
+    /// [`Hash`]: oxicrypto_core::Hash
+    #[must_use = "verification result must be checked"]
+    pub fn verify_with_hash(
+        &self,
+        hash: &dyn oxicrypto_core::Hash,
+        message: &[u8],
+        sig: &[u8],
+    ) -> Result<(), CryptoError> {
+        let digest = hash.hash_to_vec(message)?;
+        self.verify_prehash(&digest, sig)
+    }
+}
+
+impl EcdsaP384Signer {
+    /// Sign `message` by first hashing it with the supplied [`Hash`] object.
+    ///
+    /// Computes `digest = hash(message)`, then signs the raw digest bytes using
+    /// `PrehashSigner` (deterministic RFC 6979 nonce). Returns DER-encoded ECDSA.
+    ///
+    /// [`Hash`]: oxicrypto_core::Hash
+    #[must_use = "signature result must be checked"]
+    pub fn sign_with_hash(
+        &self,
+        hash: &dyn oxicrypto_core::Hash,
+        message: &[u8],
+    ) -> Result<Vec<u8>, CryptoError> {
+        use p384::ecdsa::signature::hazmat::PrehashSigner;
+        let digest = hash.hash_to_vec(message)?;
+        let sig: Signature = self
+            .signing_key
+            .sign_prehash(&digest)
+            .map_err(|_| CryptoError::Internal("ECDSA P-384 prehash sign failed"))?;
+        Ok(sig.to_der().as_bytes().to_vec())
     }
 }

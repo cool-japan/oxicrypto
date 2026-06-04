@@ -13,7 +13,28 @@ categories = ["cryptography"]
 [features]
 default = []
 pkcs11 = ["dep:cryptoki"]
+# Enable criterion benchmarks (requires pkcs11 feature to be active).
+bench = ["pkcs11", "dep:criterion"]
+# Enable oxistore-encrypt KeyProvider bridge.
+# NOTE: oxistore-encrypt dep omitted for 0.1.1 initial publish (cross-project dep not yet at 0.1.1).
+# Will be re-enabled in 0.1.2 after cooljapan-bump updates oxistore-encrypt → 0.1.1.
+oxistore = ["pkcs11"]
+# Enable rustls SigningKey implementation backed by PKCS#11 session.
+tls = ["pkcs11", "dep:rustls", "dep:rustls-pki-types"]
+
+[[bench]]
+name = "pkcs11_bench"
+harness = false
+required-features = ["bench"]
 
 [dependencies]
-oxicrypto-core = { workspace = true }
-cryptoki       = { workspace = true, optional = true }
+oxicrypto-core    = { workspace = true }
+cryptoki          = { workspace = true, optional = true }
+criterion         = { workspace = true, optional = true }
+# oxistore-encrypt re-enabled in 0.1.2 (after oxistore 0.1.1 publishes)
+rustls            = { version = "0.23", default-features = false, features = ["std"], optional = true }
+rustls-pki-types  = { version = "1", optional = true }
+
+[dev-dependencies]
+# p256 for Pure-Rust ECDSA software baseline in benchmarks
+p256 = { workspace = true }
