@@ -23,8 +23,3 @@ oxicrypto-aead = { path = "../oxicrypto-aead" }
 oxicrypto-hash = { path = "../oxicrypto-hash" }
 oxicrypto-sig  = { path = "../oxicrypto-sig" }
 ed25519-dalek  = { workspace = true }
-# Cross-workspace path deps for integration tests (not published; safe in dev-deps)
-oxistore-encrypt    = { path = "../../../oxistore/crates/oxistore-encrypt" }
-oxistore-core       = { path = "../../../oxistore/crates/oxistore-core" }
-oxitls-adapter-aws-lc = { path = "../../../oxitls/crates/oxitls-adapter-aws-lc", features = ["aws-lc"] }
-rustls              = { version = "0.23", default-features = false, features = ["std", "tls12"] }

@@ -286,6 +286,35 @@ pub mod pq {
     pub use oxicrypto_pq::*;
 }
 
+/// Post-quantum hybrid KEMs (requires `pq-preview` feature).
+///
+/// Provides direct access to fully-implemented hybrid key encapsulation mechanisms:
+///
+/// | Type | PQ | Classical | Combiner |
+/// |------|----|-----------|---------|
+/// | [`XWing768`] | ML-KEM-768 | X25519 | SHA3-256 per draft-connolly-cfrg-xwing-kem-04 |
+/// | [`HybridKem1024P384`] | ML-KEM-1024 | ECDH P-384 | HKDF-SHA-384 |
+///
+/// # Example
+///
+/// ```rust
+/// # #[cfg(feature = "pq-preview")]
+/// # {
+/// use oxicrypto::hybrid::{XWing768, HybridKem1024P384};
+/// use oxicrypto_core::Kem;
+///
+/// let (dk, ek) = XWing768::kem_generate().expect("keygen");
+/// let (ct, ss_enc) = XWing768::kem_encapsulate(&ek).expect("encapsulate");
+/// let ss_dec = XWing768::kem_decapsulate(&dk, &ct).expect("decapsulate");
+/// assert_eq!(ss_enc.as_slice(), ss_dec.as_slice());
+/// # }
+/// ```
+#[cfg(feature = "pq-preview")]
+pub mod hybrid {
+    pub use oxicrypto_core::Kem;
+    pub use oxicrypto_pq::{HybridKem1024P384, XWing768};
+}
+
 // ── SIMD / CPU-feature detection (only when `simd` feature is on) ────────────
 
 /// Runtime CPU feature detection for hardware-accelerated cryptography.

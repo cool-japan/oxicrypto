@@ -18,7 +18,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 rust-version = "1.89"
 authors = ["COOLJAPAN OU (Team Kitasan)"]
@@ -28,24 +28,24 @@ description = "OxiCrypto is the COOLJAPAN-blessed Pure Rust cryptographic primit
 
 [workspace.dependencies]
 # Internal crates
-oxicrypto                  = { path = "crates/oxicrypto",                  version = "0.1.1" }
-oxicrypto-core             = { path = "crates/oxicrypto-core",             version = "0.1.1" }
-oxicrypto-hash             = { path = "crates/oxicrypto-hash",             version = "0.1.1" }
-oxicrypto-aead             = { path = "crates/oxicrypto-aead",             version = "0.1.1" }
-oxicrypto-cipher           = { path = "crates/oxicrypto-cipher",           version = "0.1.1" }
-oxicrypto-mac              = { path = "crates/oxicrypto-mac",              version = "0.1.1" }
-oxicrypto-sig              = { path = "crates/oxicrypto-sig",              version = "0.1.1" }
-oxicrypto-kex              = { path = "crates/oxicrypto-kex",              version = "0.1.1" }
-oxicrypto-kdf              = { path = "crates/oxicrypto-kdf",              version = "0.1.1" }
-oxicrypto-rand             = { path = "crates/oxicrypto-rand",             version = "0.1.1" }
-oxicrypto-pq               = { path = "crates/oxicrypto-pq",               version = "0.1.1" }
-oxicrypto-adapter-aws-lc   = { path = "crates/oxicrypto-adapter-aws-lc",   version = "0.1.1" }
-oxicrypto-adapter-pkcs11   = { path = "crates/oxicrypto-adapter-pkcs11",   version = "0.1.1" }
+oxicrypto                  = { path = "crates/oxicrypto",                  version = "0.1.2" }
+oxicrypto-core             = { path = "crates/oxicrypto-core",             version = "0.1.2" }
+oxicrypto-hash             = { path = "crates/oxicrypto-hash",             version = "0.1.2" }
+oxicrypto-aead             = { path = "crates/oxicrypto-aead",             version = "0.1.2" }
+oxicrypto-cipher           = { path = "crates/oxicrypto-cipher",           version = "0.1.2" }
+oxicrypto-mac              = { path = "crates/oxicrypto-mac",              version = "0.1.2" }
+oxicrypto-sig              = { path = "crates/oxicrypto-sig",              version = "0.1.2" }
+oxicrypto-kex              = { path = "crates/oxicrypto-kex",              version = "0.1.2" }
+oxicrypto-kdf              = { path = "crates/oxicrypto-kdf",              version = "0.1.2" }
+oxicrypto-rand             = { path = "crates/oxicrypto-rand",             version = "0.1.2" }
+oxicrypto-pq               = { path = "crates/oxicrypto-pq",               version = "0.1.2" }
+oxicrypto-adapter-aws-lc   = { path = "crates/oxicrypto-adapter-aws-lc",   version = "0.1.2" }
+oxicrypto-adapter-pkcs11   = { path = "crates/oxicrypto-adapter-pkcs11",   version = "0.1.2" }
 
 # Crypto primitives — new-generation RustCrypto (digest 0.11 chain)
 sha2           = { version = "0.11.0",  default-features = false }
 sha3           = { version = "0.12.0",  default-features = false }
-blake2         = { version = "0.11.0-rc.6", default-features = false }
+blake2         = { version = "0.11.0-rc.6", default-features = false } # pre-release: no stable 0.11 yet
 blake3         = { version = "1.8.5",   default-features = false }
 hmac           = { version = "0.13.0",  default-features = false }
 hkdf           = { version = "0.13.0",  default-features = false }
@@ -81,17 +81,17 @@ serde          = { version = "1.0.228", default-features = false, features = ["d
 oxicode        = { version = "0.2.4",  default-features = false, features = ["alloc", "serde"] }
 
 # M2 additions — signature algorithms (digest 0.11 / new-gen chain)
-rsa            = { version = "0.10.0-rc.18", default-features = false, features = ["encoding"] }
-p256           = { version = "0.14.0-rc.9",  default-features = false, features = ["ecdsa", "alloc"] }
-p384           = { version = "0.14.0-rc.9",  default-features = false, features = ["ecdsa", "alloc"] }
-p521           = { version = "0.14.0-rc.9",  default-features = false, features = ["ecdsa", "alloc"] }
-k256           = { version = "0.14.0-rc.9",  default-features = false, features = ["schnorr", "alloc"] }
-ed448-goldilocks = { version = "0.14.0-pre.12", default-features = false, features = ["signing"] }
-x448             = { version = "0.14.0-pre.9",  default-features = false }
+rsa            = { version = "0.10.0-rc.18",  default-features = false, features = ["encoding"] }          # pre-release: no stable 0.10 yet
+p256           = { version = "0.14.0-rc.11", default-features = false, features = ["ecdsa", "alloc"] }   # pre-release: no stable 0.14 yet
+p384           = { version = "0.14.0-rc.11", default-features = false, features = ["ecdsa", "alloc"] }   # pre-release: no stable 0.14 yet
+p521           = { version = "0.14.0-rc.11", default-features = false, features = ["ecdsa", "alloc"] }   # pre-release: no stable 0.14 yet
+k256           = { version = "0.14.0-rc.11", default-features = false, features = ["schnorr", "alloc"] } # pre-release: no stable 0.14 yet
+ed448-goldilocks = { version = "0.14.0-pre.13", default-features = false, features = ["signing"] }       # pre-release: no stable 0.14 yet
+x448             = { version = "0.14.0-pre.10", default-features = false }                               # pre-release: no stable 0.14 yet
 
 # M2 additions — password hashing KDFs (digest 0.11 / new-gen chain)
 pbkdf2         = { version = "0.13.0",       default-features = false, features = ["sha2", "hmac"] }
-argon2         = { version = "0.6.0-rc.8",   default-features = false, features = ["alloc", "password-hash"] }
+argon2         = { version = "0.6.0-rc.8",   default-features = false, features = ["alloc", "password-hash"] } # pre-release: no stable 0.6 yet
 scrypt         = { version = "0.12.0",       default-features = false, features = ["password-hash"] }
 password-hash  = { version = "0.6.1",        default-features = false, features = ["alloc", "phc"] }
 
@@ -103,7 +103,7 @@ aes-gcm-siv    = { version = "0.11.1",       default-features = false, features 
 poly1305       = { version = "0.9.0",        default-features = false }
 # cmac 0.8 requires cipher 0.5; use aes-cipher05 (aes 0.9) as the cipher backend
 cmac           = { version = "0.8.0",        default-features = false }
-ccm            = { version = "0.6.0-rc.3",   default-features = false }
+ccm            = { version = "0.6.0-rc.3",   default-features = false }                                      # pre-release: no stable 0.6 yet
 ocb3           = { version = "0.1.0",        default-features = false }
 # aes-cipher05: aes 0.9.x implements cipher 0.5 traits (required by cmac 0.8).
 # Coexists with aes 0.8 (cipher 0.4, used by aes-gcm / chacha20poly1305 chain).
@@ -128,7 +128,7 @@ ml-dsa         = { version = "0.1.0",        default-features = false, features 
 
 # M3 additions — post-quantum stateless signatures + new AEADs
 # aes-siv omitted: 0.8.0-rc.3 requires aead 0.6, workspace pins aead 0.5
-slh-dsa        = { version = "0.2.0-rc.5",   features = ["alloc"] }
+slh-dsa        = { version = "0.2.0-rc.5",   features = ["alloc"] }                                         # pre-release: no stable 0.2 yet
 aes-kw         = { version = "0.3.1",        default-features = false }
 
 # Test/decode utilities
@@ -140,6 +140,8 @@ criterion      = { version = "0.8.2", features = ["html_reports"] }
 ring           = { version = "0.17.14" }
 aws-lc-rs      = { version = "1.17.0" }
 cryptoki       = { version = "0.12.0" }
+rustls         = { version = "0.23", default-features = false }
+rustls-pki-types = { version = "1" }
 
 # ── Build profiles ───────────────────────────────────────────────────────────
 # Optimize all *dependencies* (the "*" glob excludes workspace crates) even in
@@ -158,4 +160,5 @@ opt-level = 3
 # it explicitly so the SLH-DSA-128s round-trip tests finish in a few seconds.
 [profile.dev.package.oxicrypto-pq]
 opt-level = 3
+
 

@@ -13,12 +13,12 @@
 //! Ed448ctx uses a domain-separation context string (up to 255 bytes) for
 //! the standard (non-prehashed) Ed448. Useful for protocol-level separation.
 
-// We must use the sha3 re-exported by ed448-goldilocks (sha3 0.11) to ensure
-// the Shake256 type matches what PreHasherXof expects. Using the workspace
-// sha3 0.12 would produce a different (incompatible) Shake256 type.
-use ed448_goldilocks::sha3::digest::Update;
+// We must use the shake re-exported by ed448-goldilocks to ensure the Shake256
+// type matches what PreHasherXof expects. ed448-goldilocks >= 0.14.0-pre.13
+// switched from re-exporting `sha3` to re-exporting `shake`.
+use ed448_goldilocks::shake::digest::Update;
 use ed448_goldilocks::{
-    sha3::Shake256, EdwardsScalarBytes, PreHasherXof, Signature, SigningKey, VerifyingKey,
+    shake::Shake256, EdwardsScalarBytes, PreHasherXof, Signature, SigningKey, VerifyingKey,
 };
 use oxicrypto_core::{CryptoError, Vec};
 

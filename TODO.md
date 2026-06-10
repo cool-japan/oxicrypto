@@ -1,5 +1,7 @@
 # OxiCrypto TODO
 
+**v0.1.2 released 2026-06-10 — dependency inversion (oxicrypto is now a pure leaf), HSM keygen primitives, hybrid KEM benchmarks, facade integration tests, dep upgrades (p256/p384/p521/k256 rc.10, ed448-goldilocks pre.13, x448 pre.10). Tests: see current count from cargo nextest run. Backlog items below are post-1.0 scope.**
+
 **v0.1.1 released 2026-06-04 — version bump; all milestones M0–M5 complete.
 1558 tests pass. Backlog items below are post-1.0 scope.**
 
@@ -52,6 +54,10 @@ Milestones derived from `../phase2/oxicrypto_blueprint.md` §Phased milestones.
   - **Prerequisites:** none (aws-lc-rs already in lockfile via M4 bench dep).
   - **Tests:** parity — aws-lc-rs and RustCrypto default produce byte-identical KAT outputs for each primitive. purity — `cargo tree -p oxicrypto --edges normal` grep for `aws-lc|cryptoki` returns empty. pkcs11 — `#[ignore]` SoftHSM IT; headless session-lifecycle unit tests.
   - **Risk:** aws-lc-sys on adapter's own edges is expected; tripwire prevents façade leakage. cryptoki MSRV 1.77 < oxicrypto's floor; safe.
+
+## Dependency inversion (2026-06-05)
+
+- [x] Dependency inversion → oxicrypto is now a pure leaf (zero oxistore/oxitls refs). Removed adapter-pkcs11's `oxistore` feature and the `oxistore_encrypt::KeyProvider` impls; relocated the pure PKCS#11 keygen primitives (`generate_hmac_key`/`generate_extractable_aes_key`/`extract_key_value`) to `hsm_keygen.rs` (kept `pub`, `find_secret_key`/`with_session` already `pub`). Deleted the cross-workspace integration tests `oxistore_encrypt_compat.rs` / `oxitls_coexist.rs` — they now live on the oxistore/oxitls side. (done 2026-06-05)
 
 ## Per-Crate Implementation Backlog
 

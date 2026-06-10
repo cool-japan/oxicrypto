@@ -12,8 +12,13 @@
 //! ML-DSA key generation and signing are order-of-magnitude slower than
 //! classical counterparts.
 
+use std::hint::black_box;
+
 use criterion::{criterion_group, criterion_main, Criterion, SamplingMode};
-use oxicrypto_pq::{MlDsa65, MlKem768, Signature65, SigningKey65, VerifyingKey65};
+use oxicrypto_core::Kem;
+use oxicrypto_pq::{
+    HybridKem1024P384, MlDsa65, MlKem768, Signature65, SigningKey65, VerifyingKey65, XWing768,
+};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 
@@ -128,7 +133,89 @@ fn bench_mldsa65(c: &mut Criterion) {
     group.finish();
 }
 
+// ── Hybrid KEM benchmarks ─────────────────────────────────────────────────────
+//
+// X-Wing (ML-KEM-768 + X25519) and HybridKem1024P384 (ML-KEM-1024 + ECDH-P384).
+// Both KEMs use OS entropy internally; we use sample_size(10) because ML-KEM
+// operations are expensive in debug builds.
+
+fn bench_xwing768(c: &mut Criterion) {
+    // Pre-generate keys for encap/decap benches.
+    let (setup_dk, setup_ek) = XWing768::kem_generate().expect("known-good XWing768 keygen");
+    let (setup_ct, _) = XWing768::kem_encapsulate(&setup_ek).expect("known-good XWing768 encap");
+
+    let mut group = c.benchmark_group("hybrid/XWing768");
+    group.sample_size(10);
+    group.sampling_mode(SamplingMode::Flat);
+
+    group.bench_function("keygen", |b| {
+        b.iter(|| {
+            let _ = black_box(XWing768::kem_generate().expect("known-good"));
+        });
+    });
+
+    group.bench_function("encapsulate", |b| {
+        b.iter(|| {
+            let _ = black_box(XWing768::kem_encapsulate(black_box(&setup_ek)).expect("known-good"));
+        });
+    });
+
+    group.bench_function("decapsulate", |b| {
+        b.iter(|| {
+            let _ = black_box(
+                XWing768::kem_decapsulate(black_box(&setup_dk), black_box(&setup_ct))
+                    .expect("known-good"),
+            );
+        });
+    });
+
+    group.finish();
+}
+
+fn bench_hybrid_p384(c: &mut Criterion) {
+    // Pre-generate keys for encap/decap benches.
+    let (setup_dk, setup_ek) =
+        HybridKem1024P384::kem_generate().expect("known-good HybridKem1024P384 keygen");
+    let (setup_ct, _) =
+        HybridKem1024P384::kem_encapsulate(&setup_ek).expect("known-good HybridKem1024P384 encap");
+
+    let mut group = c.benchmark_group("hybrid/HybridKem1024P384");
+    group.sample_size(10);
+    group.sampling_mode(SamplingMode::Flat);
+
+    group.bench_function("keygen", |b| {
+        b.iter(|| {
+            let _ = black_box(HybridKem1024P384::kem_generate().expect("known-good"));
+        });
+    });
+
+    group.bench_function("encapsulate", |b| {
+        b.iter(|| {
+            let _ = black_box(
+                HybridKem1024P384::kem_encapsulate(black_box(&setup_ek)).expect("known-good"),
+            );
+        });
+    });
+
+    group.bench_function("decapsulate", |b| {
+        b.iter(|| {
+            let _ = black_box(
+                HybridKem1024P384::kem_decapsulate(black_box(&setup_dk), black_box(&setup_ct))
+                    .expect("known-good"),
+            );
+        });
+    });
+
+    group.finish();
+}
+
 // ── Criterion wiring ──────────────────────────────────────────────────────────
 
-criterion_group!(benches, bench_mlkem768, bench_mldsa65);
+criterion_group!(
+    benches,
+    bench_mlkem768,
+    bench_mldsa65,
+    bench_xwing768,
+    bench_hybrid_p384
+);
 criterion_main!(benches);

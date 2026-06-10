@@ -1147,3 +1147,62 @@ fn available_algorithms_contains_hybrid_kem_ids() {
         "HybridKem1024P384 must be in available_algorithms"
     );
 }
+
+// ── hybrid facade module reachability ────────────────────────────────────────
+
+/// Verify `crate::hybrid::XWing768` is reachable via the facade and that
+/// a full keygen → encaps → decaps round-trip produces equal shared secrets.
+#[cfg(feature = "pq-preview")]
+#[test]
+fn hybrid_xwing768_roundtrip() {
+    use crate::hybrid::{Kem, XWing768};
+
+    // Key generation
+    let (dk, ek) = XWing768::kem_generate().expect("XWing768::kem_generate must succeed");
+
+    // Encapsulation (sender side)
+    let (ct, ss_enc) =
+        XWing768::kem_encapsulate(&ek).expect("XWing768::kem_encapsulate must succeed");
+
+    // Decapsulation (recipient side)
+    let ss_dec =
+        XWing768::kem_decapsulate(&dk, &ct).expect("XWing768::kem_decapsulate must succeed");
+
+    assert_eq!(
+        ss_enc.as_slice(),
+        ss_dec.as_slice(),
+        "XWing768 round-trip: encapsulator and decapsulator must agree on the shared secret"
+    );
+    assert_eq!(
+        ss_enc.as_slice().len(),
+        32,
+        "XWing768 shared secret must be 32 bytes"
+    );
+}
+
+/// Verify `crate::hybrid::HybridKem1024P384` is reachable via the facade
+/// and that a full keygen → encaps → decaps round-trip produces equal shared
+/// secrets.
+#[cfg(feature = "pq-preview")]
+#[test]
+fn hybrid_p384_roundtrip() {
+    use crate::hybrid::{HybridKem1024P384, Kem};
+
+    // Key generation
+    let (dk, ek) =
+        HybridKem1024P384::kem_generate().expect("HybridKem1024P384::kem_generate must succeed");
+
+    // Encapsulation (sender side)
+    let (ct, ss_enc) = HybridKem1024P384::kem_encapsulate(&ek)
+        .expect("HybridKem1024P384::kem_encapsulate must succeed");
+
+    // Decapsulation (recipient side)
+    let ss_dec = HybridKem1024P384::kem_decapsulate(&dk, &ct)
+        .expect("HybridKem1024P384::kem_decapsulate must succeed");
+
+    assert_eq!(
+        ss_enc.as_slice(),
+        ss_dec.as_slice(),
+        "HybridKem1024P384 round-trip: encapsulator and decapsulator must agree on the shared secret"
+    );
+}

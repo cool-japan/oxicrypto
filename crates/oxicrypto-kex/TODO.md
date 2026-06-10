@@ -45,7 +45,8 @@ X25519, X448, ECDH P-256/P-384/P-521 DH implemented. All implement `KeyAgreement
   - **Prerequisites:** ct_is_zero is re-exported from oxicrypto-core (already done)
   - **Tests:** Verify that passing the low-order X25519 point (0x00...00) as the public key returns CryptoError::KeyAgreement; verify normal key exchange still succeeds
   - **Risk:** Low — ct_is_zero is already used for P-256/P-384; the X25519 ECDH output is a fixed 32-byte array
-- [ ] Add hybrid key exchange: `HybridKex` combining classical (X25519) + post-quantum (ML-KEM-768) shared secrets via HKDF (~100 SLOC) **[BLOCKED: dep cycle — implement in oxicrypto facade or new oxicrypto-hybrid crate; see Proposed follow-ups]**
+- [x] Add hybrid key exchange: `HybridKex` combining classical (X25519) + post-quantum (ML-KEM-768) shared secrets via HKDF (resolved 2026-06-10)
+  - **Resolution:** Dep cycle resolved by implementing in the `oxicrypto` facade. `crate::hybrid` module added to `oxicrypto/src/lib.rs` (behind `pq-preview`) re-exporting `oxicrypto_pq::{XWing768, HybridKem1024P384}` and `oxicrypto_core::Kem`. `XWing768` (ML-KEM-768 + X25519, SHA3-256 combiner per draft-connolly-cfrg-xwing-kem-04) and `HybridKem1024P384` (ML-KEM-1024 + ECDH-P384, HKDF-SHA-384) are both KAT-verified implementations already in `oxicrypto-pq/src/hybrid.rs`.
 - [x] Add HPKE (RFC 9180) — full construction, all 4 modes (done 2026-05-30)
   - **Goal:** complete HPKE in a new `src/hpke/` module tree: DHKEM with Encap/Decap **and** AuthEncap/AuthDecap over DHKEM(X25519,HKDF-SHA256) [0x0020] and DHKEM(P-256,HKDF-SHA256) [0x0010]; labeled-HKDF; key schedule for Base/PSK/Auth/AuthPSK; stateful Seal/Open/Export context; single-shot wrappers; `HpkeSuite { kem, kdf, aead }` public API. AEADs: AES-128-GCM, AES-256-GCM, ChaCha20Poly1305, Export-only. Reachable as `oxicrypto_kex::hpke::*` and (facade) `oxicrypto::hpke::*`.
   - **Design/Files/Tests:** see approved plan `~/.claude/plans/cosmic-growing-lightning.md` (blocks H0–H8). Byte-exact validation vs RFC 9180 Appendix-A (A.1.1 X25519 full chain incl. seq0/seq1 + export; A.3.1 P-256) plus all-mode round-trips and negative tests.
@@ -81,14 +82,16 @@ X25519, X448, ECDH P-256/P-384/P-521 DH implemented. All implement `KeyAgreement
 - [x] Test: reject public key of incorrect length — covered in lib.rs tests for all curves (done 2026-05-26)
 - [x] Property test: DH commutativity — `agree(a, B) == agree(b, A)` for random key pairs — covered in kat_x25519_wycheproof.rs and kat_ecdh_nist.rs for all algorithms (done 2026-05-26)
 - [x] Property test: same (secret, public) always produces same shared secret (deterministic) (done 2026-06-03)
-- [ ] Test: hybrid key exchange produces deterministic output from same seeds **[BLOCKED: depends on HybridKex above]**
+- [x] Test: hybrid key exchange produces deterministic output from same seeds (resolved 2026-06-10)
+  - **Resolution:** Round-trip tests `hybrid_xwing768_roundtrip` and `hybrid_p384_roundtrip` added to `oxicrypto/src/tests.rs` (lines after 1149). Both verify keygen → encaps → decaps produces equal shared secrets via `crate::hybrid::{XWing768, HybridKem1024P384, Kem}`.
 - [x] Fuzz test: `agree()` never panics on arbitrary 32/56-byte inputs (done 2026-06-03)
 
 ## Performance
 - [x] Benchmark X25519 agreement per operation vs ring/aws-lc-rs (done 2026-06-03; ring comparison sub-benchmark added to oxicrypto-bench/benches/kex.rs)
 - [x] Benchmark X448 vs X25519 (X448 ~2.5x slower) (done 2026-06-03; X448 keygen/agree/agree-round-trip criterion group added)
 - [x] Benchmark ECDH P-256 vs X25519 (P-256 ~1.5x slower on non-specialized hardware) (done 2026-06-03; ring P-256 comparison sub-benchmark added)
-- [ ] Benchmark hybrid KEM (X25519 + ML-KEM-768) total latency **[BLOCKED: depends on HybridKex]**
+- [x] Benchmark hybrid KEM (X25519 + ML-KEM-768) total latency (resolved 2026-06-10)
+  - **Resolution:** `bench_xwing768` and `bench_hybrid_p384` criterion groups added to `oxicrypto-bench/benches/pq.rs`. Each group benchmarks keygen, encapsulate, and decapsulate with `sample_size(10)` and `SamplingMode::Flat` (behind `pq-preview` feature).
 - [x] Profile key generation time for all key agreement algorithms (done 2026-06-03; keygen bench group in every algorithm group)
 
 ## Integration
@@ -96,7 +99,8 @@ X25519, X448, ECDH P-256/P-384/P-521 DH implemented. All implement `KeyAgreement
 - [x] Use oxicrypto-kdf HKDF for shared-secret-to-key derivation in KEM/HPKE (labeled HKDF) (done 2026-05-30)
   - **Goal:** `HpkeKdf` enum in `src/hpke/labeled.rs` wraps `oxicrypto_kdf::hkdf_sha{256,384,512}_{extract,expand}` into RFC 9180 LabeledExtract/LabeledExpand; consumed by DHKEM ExtractAndExpand and the HPKE key schedule.
   - **Design:** approved plan blocks H2 + H4.
-- [ ] Coordinate with `oxicrypto-pq` ML-KEM for hybrid key exchange composition **[BLOCKED: dep cycle — same resolution as HybridKex]**
+- [x] Coordinate with `oxicrypto-pq` ML-KEM for hybrid key exchange composition (resolved 2026-06-10)
+  - **Resolution:** Dep cycle resolved in the `oxicrypto` facade layer. `oxicrypto-pq/src/hybrid.rs` already uses `oxicrypto-kex` directly (`x25519_generate_keypair`, `ecdh_p384_generate_keypair`, `X25519`, `EcdhP384`). The facade `oxicrypto::hybrid` module ties them together without creating a cycle.
 - [x] Provide key exchange algorithm negotiation for OxiTLS: `negotiate_kex(group) -> Box<dyn KeyAgreement>` (done 2026-06-03; maps TLS named groups secp256r1/secp384r1/secp521r1/P-256/P-384/P-521/x25519/X25519/x448/X448 to implementations; returns UnsupportedAlgorithm for unknown groups)
 - [x] Add all key exchange algorithms to `oxicrypto-bench` criterion benchmarks (done 2026-06-03; X448 keygen/agree/round-trip + ring comparisons for X25519 and P-256 added)
 

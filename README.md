@@ -1,6 +1,6 @@
 # OxiCrypto
 
-**Version 0.1.1 — 2026-06-04**
+**Version 0.1.2 — 2026-06-10**
 
 OxiCrypto is the COOLJAPAN-blessed Pure Rust cryptographic primitives layer:
 hashes, MACs, AEADs, signatures, key exchange, KDFs, password hashing, PRNGs,
@@ -12,7 +12,7 @@ The non-negotiable goal: a fresh `rust:slim` container running
 `cargo build --no-default-features` succeeds with zero `apt-get install` and no
 C toolchain.
 
-## Status: v0.1.1 — All milestones M0–M5 complete
+## Status: v0.1.2 — All milestones M0–M5 complete
 
 | Milestone | Description | Status |
 |-----------|-------------|--------|
@@ -50,10 +50,10 @@ C toolchain.
 
 ```toml
 [dependencies]
-oxicrypto = "0.1.1"
+oxicrypto = "0.1.2"
 
 # Post-quantum primitives (off by default):
-oxicrypto = { version = "0.1.1", features = ["pq-preview"] }
+oxicrypto = { version = "0.1.2", features = ["pq-preview"] }
 ```
 
 ### Hash

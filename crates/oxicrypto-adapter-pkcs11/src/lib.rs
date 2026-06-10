@@ -8,7 +8,6 @@
 //! | Flag | Default | Description |
 //! |------|---------|-------------|
 //! | `pkcs11` | off | Enable cryptoki-backed HSM implementations. |
-//! | `oxistore` | off | Enable `oxistore-encrypt` `KeyProvider` bridge (implies `pkcs11`). |
 //! | `bench` | off | Enable criterion benchmarks (implies `pkcs11`). |
 
 #[cfg(feature = "pkcs11")]
@@ -26,8 +25,8 @@ pub mod sign;
 #[cfg(feature = "pkcs11")]
 pub mod sym;
 
-#[cfg(feature = "oxistore")]
-pub mod keystore;
+#[cfg(feature = "pkcs11")]
+mod hsm_keygen;
 
 #[cfg(feature = "tls")]
 pub mod tls;
@@ -46,9 +45,6 @@ pub use sign::{Pkcs11Signer, Pkcs11SignerBuilder, Pkcs11Verifier, SignMechanism}
 
 #[cfg(feature = "pkcs11")]
 pub use sym::{Pkcs11Aead, Pkcs11SymOp};
-
-#[cfg(feature = "oxistore")]
-pub use keystore::{Pkcs11ExtractableKeyProvider, Pkcs11KeyProvider};
 
 #[cfg(feature = "tls")]
 pub use tls::{Pkcs11TlsSigner, Pkcs11TlsSigningKey};

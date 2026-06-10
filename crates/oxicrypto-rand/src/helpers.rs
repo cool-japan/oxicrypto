@@ -1,7 +1,7 @@
 //! Convenience free functions: `random_bytes`, `random_nonce`, `random_range`,
 //! `reseed`, `shuffle`, and related helpers.
 
-use oxicrypto_core::CryptoError;
+use oxicrypto_core::{CryptoError, Zeroize};
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
 
@@ -201,6 +201,7 @@ pub fn reseed(rng: &mut OxiRng) -> Result<(), CryptoError> {
     let mut seed = [0u8; 32];
     getrandom::fill(&mut seed).map_err(|_| CryptoError::Rng)?;
     rng.inner = ChaCha20Rng::from_seed(seed);
+    seed.zeroize();
     #[cfg(unix)]
     {
         rng.last_pid = std::process::id();

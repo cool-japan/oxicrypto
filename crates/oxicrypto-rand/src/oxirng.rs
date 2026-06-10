@@ -3,7 +3,7 @@
 //!
 //! All three variants are fork-safe on Unix via PID tracking.
 
-use oxicrypto_core::{CryptoError, Rng};
+use oxicrypto_core::{CryptoError, Rng, Zeroize};
 use rand_chacha::ChaCha20Rng;
 use rand_core::{SeedableRng, TryRng};
 
@@ -48,8 +48,12 @@ impl OxiRng {
     pub fn new() -> Result<Self, CryptoError> {
         let mut seed = [0u8; 32];
         getrandom::fill(&mut seed).map_err(|_| CryptoError::Internal("getrandom failed"))?;
+        // `[u8; 32]` is Copy, so `from_seed` receives a copy; zeroize the
+        // original stack copy so the seed does not linger in memory.
+        let inner = ChaCha20Rng::from_seed(seed);
+        seed.zeroize();
         Ok(Self {
-            inner: ChaCha20Rng::from_seed(seed),
+            inner,
             #[cfg(unix)]
             last_pid: std::process::id(),
         })
@@ -82,6 +86,7 @@ impl OxiRng {
             let mut seed = [0u8; 32];
             getrandom::fill(&mut seed).map_err(|_| CryptoError::Rng)?;
             self.inner = ChaCha20Rng::from_seed(seed);
+            seed.zeroize();
             self.last_pid = current_pid;
         }
         Ok(())
@@ -164,8 +169,10 @@ impl OxiRng8 {
     pub fn new() -> Result<Self, CryptoError> {
         let mut seed = [0u8; 32];
         getrandom::fill(&mut seed).map_err(|_| CryptoError::Internal("getrandom failed"))?;
+        let inner = rand_chacha::ChaCha8Rng::from_seed(seed);
+        seed.zeroize();
         Ok(Self {
-            inner: rand_chacha::ChaCha8Rng::from_seed(seed),
+            inner,
             #[cfg(unix)]
             last_pid: std::process::id(),
         })
@@ -176,6 +183,7 @@ impl OxiRng8 {
         let mut seed = [0u8; 32];
         getrandom::fill(&mut seed).map_err(|_| CryptoError::Rng)?;
         self.inner = rand_chacha::ChaCha8Rng::from_seed(seed);
+        seed.zeroize();
         #[cfg(unix)]
         {
             self.last_pid = std::process::id();
@@ -190,6 +198,7 @@ impl OxiRng8 {
             let mut seed = [0u8; 32];
             getrandom::fill(&mut seed).map_err(|_| CryptoError::Rng)?;
             self.inner = rand_chacha::ChaCha8Rng::from_seed(seed);
+            seed.zeroize();
             self.last_pid = current_pid;
         }
         Ok(())
@@ -257,8 +266,10 @@ impl OxiRng12 {
     pub fn new() -> Result<Self, CryptoError> {
         let mut seed = [0u8; 32];
         getrandom::fill(&mut seed).map_err(|_| CryptoError::Internal("getrandom failed"))?;
+        let inner = rand_chacha::ChaCha12Rng::from_seed(seed);
+        seed.zeroize();
         Ok(Self {
-            inner: rand_chacha::ChaCha12Rng::from_seed(seed),
+            inner,
             #[cfg(unix)]
             last_pid: std::process::id(),
         })
@@ -269,6 +280,7 @@ impl OxiRng12 {
         let mut seed = [0u8; 32];
         getrandom::fill(&mut seed).map_err(|_| CryptoError::Rng)?;
         self.inner = rand_chacha::ChaCha12Rng::from_seed(seed);
+        seed.zeroize();
         #[cfg(unix)]
         {
             self.last_pid = std::process::id();
@@ -283,6 +295,7 @@ impl OxiRng12 {
             let mut seed = [0u8; 32];
             getrandom::fill(&mut seed).map_err(|_| CryptoError::Rng)?;
             self.inner = rand_chacha::ChaCha12Rng::from_seed(seed);
+            seed.zeroize();
             self.last_pid = current_pid;
         }
         Ok(())

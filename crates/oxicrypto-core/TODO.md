@@ -120,17 +120,17 @@ Minimal trait surface (187 SLOC). Defines `CryptoError` enum, seven trait object
   **DEFERRED: Requires criterion benchmark harness setup; deferred to a future `/ultra bench` pass (see Proposed follow-ups).**
 
 ## Integration
-- [~] Ensure `oxicrypto-sig` Ed448/ECDSA/RSA types use `SecretKey` wrapper for private key storage (planned 2026-06-03)
-  - **Goal:** Audit and document cross-crate usage. **Files:** `oxicrypto-core/src/tests.rs` (doc tests only). **Risk:** Low — audit only.
-- [~] Ensure `oxicrypto-kex` X25519 uses `SecretKey<32>` for static secrets (planned 2026-06-03)
-  - **Goal:** Audit and document cross-crate usage. **Files:** `oxicrypto-core/src/tests.rs` (doc tests only). **Risk:** Low — audit only.
-- [~] Ensure `oxicrypto-rand` OxiRng seed uses `SecretKey<32>` wrapper (planned 2026-06-03)
-  - **Goal:** Audit and document cross-crate usage. **Files:** `oxicrypto-core/src/tests.rs` (doc tests only). **Risk:** Low — audit only.
-- [~] Ensure `oxicrypto-pq` ML-KEM `DecapKey` / ML-DSA `SigningKey` newtype wrappers implement `Zeroize` (planned 2026-06-03)
-  - **Goal:** Audit and document cross-crate usage. **Files:** `oxicrypto-core/src/tests.rs` (doc tests only). **Risk:** Low — audit only.
+- [x] Ensure `oxicrypto-sig` Ed448/ECDSA/RSA types use `SecretKey` wrapper for private key storage (verified 2026-06-10)
+  - **Verification:** `oxicrypto-sig/src/lib.rs:149,155` — Ed25519 keygen returns `SecretKey<32>`; `lib.rs:165,168` — ECDSA-P256 wraps raw bytes in `SecretVec`; `lib.rs:413–423` — `EcdsaP256KeyPair` has explicit `Zeroize` impl (underlying `p256::ecdsa::SigningKey` implements `ZeroizeOnDrop`). Pattern is consistent for P-384/P-521/secp256k1 (lines 469ff). All private key material at the byte boundary uses `SecretKey<N>` or `SecretVec`.
+- [x] Ensure `oxicrypto-kex` X25519 uses `SecretKey<32>` for static secrets (verified 2026-06-10)
+  - **Verification:** `oxicrypto-kex/src/lib.rs:416` — `x25519_generate_keypair` return type is `(SecretKey<32>, [u8; 32])`; `lib.rs:425` — `SecretKey::new(seed)` wraps raw bytes (zeroize-on-drop). `X25519::agree_with_key` at line 200 takes `&SecretKey<32>` directly.
+- [x] Ensure `oxicrypto-rand` OxiRng seed uses `SecretKey<32>` wrapper (implemented 2026-06-10)
+  - **Verification:** `oxicrypto-rand/src/oxirng.rs` — all three constructors (OxiRng, OxiRng8, OxiRng12) and all `reseed`/`check_fork` paths now call `seed.zeroize()` immediately after `from_seed(seed)`. `[u8; 32]` is `Copy` so the stack copy persists until explicitly zeroized. `helpers.rs:reseed()` also fixed. Uses `oxicrypto_core::Zeroize` — no direct `zeroize` dep added.
+- [x] Ensure `oxicrypto-pq` ML-KEM `DecapKey` / ML-DSA `SigningKey` newtype wrappers implement `Zeroize` (verified 2026-06-10)
+  - **Verification:** `oxicrypto-pq/src/mlkem.rs:124` — `impl ZeroizeOnDrop for DecapKey512 {}`; `mlkem.rs:290` — `DecapKey768`; `mlkem.rs:451` — `DecapKey1024`. ML-DSA: `mldsa.rs:45` — `impl ZeroizeOnDrop for SigningKey44 {}`; `mldsa.rs:166` — `SigningKey65`; `mldsa.rs:287` — `SigningKey87`. Hybrid: `hybrid.rs:107` — `XWingSharedSecret` derives `Zeroize, ZeroizeOnDrop`; `XWing768DecapKey.x25519_sk` is `SecretKey<32>` (zeroize-on-drop).
 - [x] Provide re-export of `subtle::ConstantTimeEq` for downstream crates to use without adding `subtle` directly
-- [~] Ensure all downstream crates depend on `oxicrypto-core` for trait objects (no duplicated trait definitions) (planned 2026-06-03)
-  - **Goal:** Audit and document cross-crate usage. **Files:** `oxicrypto-core/src/tests.rs` (doc tests only). **Risk:** Low — audit only.
+- [x] Ensure all downstream crates depend on `oxicrypto-core` for trait objects (no duplicated trait definitions) (verified 2026-06-10)
+  - **Verification:** All sub-crates (`oxicrypto-sig`, `oxicrypto-kex`, `oxicrypto-pq`, `oxicrypto-rand`, etc.) list `oxicrypto-core.workspace = true` in their `Cargo.toml` and import traits exclusively via `use oxicrypto_core::{...}`. No crate defines its own `Hash`/`Kem`/`KeyAgreement`/`Rng`/etc. trait — all are consumed from the single `oxicrypto-core` source.
 
 ## Proposed follow-ups
 

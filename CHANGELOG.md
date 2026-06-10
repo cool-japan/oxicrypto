@@ -4,6 +4,24 @@ All notable changes to OxiCrypto are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-06-10
+
+### Added
+
+- **`generate_hmac_key` / `generate_extractable_aes_key` / `extract_key_value`** (oxicrypto-adapter-pkcs11) — pure PKCS#11 HSM key-generation and extraction primitives relocated to a new `hsm_keygen.rs` module. All three methods are `pub` on `Pkcs11Provider` and carry no cross-workspace dependencies: `generate_hmac_key` provisions a non-extractable HMAC-SHA-256 capable `CKO_SECRET_KEY` on the token; `generate_extractable_aes_key` provisions a 32-byte AES key with `CKA_EXTRACTABLE=true`; `extract_key_value` retrieves the raw `CKA_VALUE` of an extractable key.
+- **Hybrid KEM benchmarks** (oxicrypto-bench) — new criterion groups for `XWing768` and `HybridKem1024P384` key encapsulation, covering keygen, encapsulate, and decapsulate round-trips.
+- **`oxicrypto` facade integration tests** (crates/oxicrypto/tests.rs) — end-to-end round-trip tests for the full facade: sign/verify (Ed25519, ECDSA P-256/P-384/P-521, RSA), AEAD (AES-GCM, ChaCha20-Poly1305), key exchange (X25519), KDF (HKDF), and password hashing (Argon2id).
+- **`rustls` / `rustls-pki-types` workspace dependency alignment** (oxicrypto-adapter-pkcs11) — version pins moved to workspace `[dependencies]` for consistency; `rustls` and `rustls-pki-types` are now optional deps resolved from the single workspace declaration.
+
+### Changed
+
+- **Dependency inversion — oxicrypto is now a pure leaf** — removed the `oxistore` feature and all `oxistore_encrypt::KeyProvider` implementations from `oxicrypto-adapter-pkcs11`. The `Pkcs11KeyProvider` / `Pkcs11ExtractableKeyProvider` bridge types that depended on `oxistore-encrypt` are removed; the equivalent HSM key-generation primitives are now in `hsm_keygen.rs` without cross-workspace ties. Cross-workspace integration tests `oxistore_encrypt_compat.rs` and `oxitls_coexist.rs` have been deleted from `oxicrypto-adapter-aws-lc` — they will live on the `oxistore` / `oxitls` side.
+- **Dependency upgrades** — `p256`, `p384`, `p521`, `k256` bumped to `0.14.0-rc.10`; `ed448-goldilocks` to `0.14.0-pre.13`; `x448` to `0.14.0-pre.10`.
+
+### Fixed
+
+- **`oxicrypto-adapter-aws-lc` compile fix** — removed the stale cross-workspace `dev-dependencies` on `oxistore-encrypt`, `oxistore-core`, and `oxitls-adapter-aws-lc` that caused compilation failures after the dependency-inversion refactor.
+
 ## [0.1.1] - 2026-06-04
 
 ### Added
@@ -143,5 +161,6 @@ versions in `Cargo.toml`. No custom cryptographic primitives are written.
 The default feature set is 100% Pure Rust with zero `*-sys` crates.
 Bounded FFI adapters (aws-lc, pkcs11) are strictly feature-gated.
 
+[0.1.2]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.2
 [0.1.1]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.1
 [0.1.0]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.0

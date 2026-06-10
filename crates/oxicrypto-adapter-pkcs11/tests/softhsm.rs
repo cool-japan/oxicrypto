@@ -211,7 +211,7 @@ mod tests {
 
         // Build mechanism for encrypt.
         let mut enc_iv = nonce.to_vec();
-        let tag_bits = Ulong::try_from(128u64).expect("tag_bits");
+        let tag_bits = Ulong::from(128u64);
         let enc_gcm = GcmParams::new(&mut enc_iv, aad, tag_bits).expect("GcmParams for encrypt");
         let enc_mech = Mechanism::AesGcm(enc_gcm);
 
