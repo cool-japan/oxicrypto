@@ -1,6 +1,8 @@
 # OxiCrypto TODO
 
-**v0.1.2 released 2026-06-10 — dependency inversion (oxicrypto is now a pure leaf), HSM keygen primitives, hybrid KEM benchmarks, facade integration tests, dep upgrades (p256/p384/p521/k256 rc.10, ed448-goldilocks pre.13, x448 pre.10). Tests: see current count from cargo nextest run. Backlog items below are post-1.0 scope.**
+**v0.1.3 released 2026-06-19 — RFC 8032 §7.4 KAT suite for Ed448ph/Ed448ctx (6 new tests: sign, verify, tampered-message rejection, wrong-context cross-verification, oversized-context rejection). 1718 tests pass. Backlog items below are post-1.0 scope.**
+
+**v0.1.2 released 2026-06-10 — dependency inversion (oxicrypto is now a pure leaf), HSM keygen primitives, hybrid KEM benchmarks, facade integration tests, dep upgrades (p256/p384/p521/k256 rc.10, ed448-goldilocks pre.13, x448 pre.10). Backlog items below are post-1.0 scope.**
 
 **v0.1.1 released 2026-06-04 — version bump; all milestones M0–M5 complete.
 1558 tests pass. Backlog items below are post-1.0 scope.**

@@ -103,9 +103,9 @@ Comprehensive signature suite (158 + 61 + 58 + 58 + 67 + 222 = ~624 SLOC across 
   - **Files:** `oxicrypto/src/algo/sig.rs`.
   - **Tests:** Covered by L72 tests.
   - **Risk:** Low.
-- [~] Unify ECDSA signer/verifier construction: `EcdsaSigner::new(curve, scalar)` with curve enum instead of separate types per curve (deferred — additive enum not implemented; per-curve types remain the API)
+- [x] Unify ECDSA signer/verifier construction: `EcdsaSigner::new(curve, scalar)` with curve enum instead of separate types per curve (done 2026-06-19 — `CurveId` enum (P256/P384/P521) + `with_ecdsa_signer(CurveId) -> Box<dyn Fn>` + `with_ecdsa_verifier(CurveId) -> Box<dyn Fn>` added to `src/lib.rs`; 5 tests: P256/P384/P521 round-trip, cross-curve rejection, enum distinctness)
   - **Goal:** Add a `CurveId` enum + `EcdsaSigner::with_curve` constructor as an ergonomic alternative to the per-curve types.
-  - **Files:** `src/lib.rs`, `src/ecdsa_p256.rs`. **Risk:** Low — additive.
+  - **Files:** `src/lib.rs`. **Risk:** Low — additive.
 - [x] Add `SignatureFormat` enum: `Der`, `Raw`, `Compact` for ECDSA signature encoding selection (implemented 2026-06-03)
   - **Goal:** ECDSA signers/verifiers gain `sign_fmt(msg, fmt)` and `verify_fmt(msg, sig, fmt)` inherent methods.
   - **Design:** `pub enum SignatureFormat { Der, Raw }`. `Raw` = r||s big-endian (64/96/132 bytes). `Der` = current ASN.1 path. Add inherent methods on each ECDSA signer/verifier. Not on the `Signer`/`Verifier` trait.
@@ -131,10 +131,10 @@ Comprehensive signature suite (158 + 61 + 58 + 58 + 67 + 222 = ~624 SLOC across 
   - **Result:** `crates/oxicrypto-sig/tests/kat_ed448.rs` — TV1/TV2 sign+verify KAT, trait-dispatch round-trip, 3 negative tests (7 tests total, all pass)
 - [x] Add NIST FIPS 186-5 ECDSA test vectors for P-256, P-384, P-521 (sigGen + sigVer) (implemented 2026-05-26)
   - **Result:** `crates/oxicrypto-sig/tests/kat_ecdsa_fips.rs` — RFC 6979 key pairs, sign+verify, tamper-sig, tamper-msg, wrong-key for P-256/P-384/P-521, cross-curve isolation, zero-scalar rejection (13 tests total, all pass)
-- [~] Add Wycheproof ECDSA test vectors (ecdsa_secp256r1_sha256_test.json, etc.) (deferred — requires embedding JSON test vectors)
-  - **Goal:** Run the Wycheproof ECDSA test suite for P-256/P-384 against this crate's sign/verify. **Files:** `tests/` (extend existing or new file). **Risk:** Low.
-- [~] Add Wycheproof RSA PKCS#1v15 and RSA-PSS test vectors (deferred — requires embedding JSON test vectors)
-  - **Goal:** Run the Wycheproof RSA PKCS#1v15 and RSA-PSS test suites against this crate's verify. **Files:** `tests/` (extend existing or new file). **Risk:** Low.
+- [x] Add Wycheproof ECDSA test vectors (ecdsa_secp256r1_sha256_test.json, etc.) (done — `tests/kat_ecdsa_wycheproof.rs` with 12 tests covering valid round-trips, tamper-resistance, error-paths, and edge cases per Wycheproof P-256 SHA-256 test categories)
+  - **Goal:** Run the Wycheproof ECDSA test suite for P-256/P-384 against this crate's sign/verify. **Files:** `tests/kat_ecdsa_wycheproof.rs`. **Risk:** Low.
+- [x] Add Wycheproof RSA PKCS#1v15 and RSA-PSS test vectors (done 2026-06-19 — `tests/kat_rsa_wycheproof.rs` with 28 tests: 4 valid PKCS#1v15 + 9 invalid PKCS#1v15 + 3 DER parsing robustness + 5 PSS valid/invalid + 2 cross-scheme rejection + PSS non-determinism; all pass)
+  - **Goal:** Run the Wycheproof RSA PKCS#1v15 and RSA-PSS test suites against this crate's verify. **Files:** `tests/kat_rsa_wycheproof.rs`. **Risk:** Low.
 - [x] Extend existing `kat_ecdsa.rs` with edge cases: point-at-infinity, zero scalar, malformed SEC1 keys (implemented 2026-06-03)
   - **Goal:** Cover ECDSA rejection of point-at-infinity, zero scalar, and malformed SEC1 key inputs. **Files:** `tests/` (extend existing or new file). **Risk:** Low.
 - [~] Extend existing `kat_rsa.rs` with different key sizes (2048, 3072, 4096 bits) (deferred — RSA keygen is slow; min-2048 policy test added in test_rsa_min_2048.rs)

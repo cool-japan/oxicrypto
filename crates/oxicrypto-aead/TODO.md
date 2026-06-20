@@ -131,17 +131,17 @@ Eleven AEAD algorithms implemented. Covers AES-128-GCM, AES-256-GCM (NIST SP 800
   - **Goal:** Fuzz test: open() never panics on random ciphertext (returns InvalidTag gracefully). **Files:** `tests/` new test file. **Risk:** Low.
 
 ## Performance
-All performance items require the `oxicrypto-bench` crate (DEFERRED to `oxicrypto-bench/TODO.md`):
-- [ ] Benchmark seal/open for 64 B, 1 KiB, 4 KiB, 64 KiB, 1 MiB payloads per algorithm **DEFERRED: requires `oxicrypto-bench` crate**
-- [ ] Compare AES-GCM-SIV vs AES-GCM throughput (SIV has ~2x overhead due to two passes) **DEFERRED: requires `oxicrypto-bench` crate**
-- [ ] Benchmark XChaCha20 vs ChaCha20 (HChaCha20 subkey derivation overhead) **DEFERRED: requires `oxicrypto-bench` crate**
-- [ ] Profile streaming AEAD chunk sizes for optimal throughput (4 KiB vs 16 KiB vs 64 KiB chunks) **DEFERRED: requires `oxicrypto-bench` crate**
-- [ ] Benchmark in-place vs copy-based seal to quantify memory allocation overhead **DEFERRED: requires `oxicrypto-bench` crate**
-- [ ] Add criterion benchmark for AES-CCM and AES-OCB3 once implemented **DEFERRED: requires `oxicrypto-bench` crate**
+All performance items implemented in `oxicrypto-bench/benches/aead.rs` (done 2026-06-19):
+- [x] Benchmark seal/open for 64 B, 1 KiB, 4 KiB, 64 KiB, 1 MiB payloads per algorithm (done 2026-06-19 — `bench_aead_standard` with 5-size sweep; `bench_aead_siv`, `bench_aead_xchacha`, `bench_aead_ccm`, `bench_aead_ocb3`, `bench_aead_deoxys`)
+- [x] Compare AES-GCM-SIV vs AES-GCM throughput (SIV has ~2x overhead due to two passes) (done 2026-06-19 — `bench_aead_siv_vs_gcm` group at 64 B / 1 KiB / 64 KiB)
+- [x] Benchmark XChaCha20 vs ChaCha20 (HChaCha20 subkey derivation overhead) (done 2026-06-19 — `bench_xchacha_vs_chacha` group at 64 B / 1 KiB / 64 KiB / 1 MiB)
+- [x] Profile streaming AEAD chunk sizes for optimal throughput (4 KiB vs 16 KiB vs 64 KiB chunks) (done 2026-06-19 — `bench_aead_streaming_chunk_sizes` with AES-256-GCM STREAM and ChaCha20-Poly1305 STREAM at 4 KiB / 16 KiB / 64 KiB / 256 KiB chunk sizes over 1 MiB payload)
+- [x] Benchmark in-place vs copy-based seal to quantify memory allocation overhead (done 2026-06-19 — `bench_aead_inplace_vs_copy` for AES-256-GCM and ChaCha20-Poly1305 at 64 B / 1 KiB / 64 KiB)
+- [x] Add criterion benchmark for AES-CCM and AES-OCB3 once implemented (done 2026-06-19 — `bench_aead_ccm` and `bench_aead_ocb3` groups at 1 KiB and 1/64 KiB respectively)
 
 ## Integration
 - [x] Wire `NonceSequence` to `oxicrypto-rand` for automatic random nonce generation (done 2026-06-03 — `NonceSequence::with_random_prefix()` added behind the `rand` feature; generates a cryptographically-secure random prefix via `OxiRng`; 3 tests in `nonce_seq.rs`)
 - [x] Ensure `oxicrypto-kdf` HKDF can be used for AEAD key derivation (HKDF-Expand -> AEAD key) (done 2026-06-03 — `tests/test_hkdf_aead_integration.rs` validates the pattern: shared-secret → HKDF-SHA-256 → AES-128/256-GCM / ChaCha20-Poly1305 / XChaCha20-Poly1305; 7 tests; documented in `lib.rs` crate-level doc)
 - [ ] Provide AEAD algorithm negotiation for OxiTLS: `negotiate_aead(cipher_suite) -> Box<dyn Aead>` (DEFERRED — requires OxiTLS crate coordination)
-- [ ] Ensure `oxicrypto-bench` includes AES-GCM-SIV and XChaCha20 in comparative benchmarks (DEFERRED — requires `oxicrypto-bench` crate update)
+- [x] Ensure `oxicrypto-bench` includes AES-GCM-SIV and XChaCha20 in comparative benchmarks (done 2026-06-19 — `bench_aead_siv_vs_gcm` and `bench_xchacha_vs_chacha` groups added)
 - [ ] Coordinate with `oxicrypto-pq` for hybrid encryption: ML-KEM shared secret -> HKDF -> AEAD key (DEFERRED — requires `oxicrypto-pq` integration)

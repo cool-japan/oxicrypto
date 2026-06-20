@@ -164,7 +164,7 @@ fn bench_aes_gcm_pkcs11(c: &mut Criterion) {
     let sym = Pkcs11SymOp::new(&provider);
     let nonce = [0xBBu8; 12];
     let aad: &[u8] = b"bench-aad";
-    let tag_bits = Ulong::try_from(128u64).expect("tag_bits");
+    let tag_bits = Ulong::from(128u64);
 
     // Encrypt benchmarks.
     for &payload_bytes in &[1024usize, 65536usize] {

@@ -23,3 +23,19 @@ oxicrypto-aead = { path = "../oxicrypto-aead" }
 oxicrypto-hash = { path = "../oxicrypto-hash" }
 oxicrypto-sig  = { path = "../oxicrypto-sig" }
 ed25519-dalek  = { workspace = true }
+criterion      = { workspace = true }
+
+[[bench]]
+name = "aws_lc_aead"
+harness = false
+required-features = ["aws-lc"]
+
+[[bench]]
+name = "aws_lc_sig"
+harness = false
+required-features = ["aws-lc"]
+
+[[bench]]
+name = "aws_lc_hash"
+harness = false
+required-features = ["aws-lc"]

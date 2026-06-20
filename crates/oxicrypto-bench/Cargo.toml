@@ -54,6 +54,10 @@ required-features = ["pq-preview"]
 name = "factory_overhead"
 harness = false
 
+[[bench]]
+name = "core"
+harness = false
+
 # ── Features ──────────────────────────────────────────────────────────────────
 
 [features]

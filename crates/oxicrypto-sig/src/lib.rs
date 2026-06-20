@@ -34,6 +34,7 @@ pub mod tls;
 pub use ecdsa_p256::{EcdsaP256Signer, EcdsaP256Verifier};
 pub use ecdsa_p384::{EcdsaP384Signer, EcdsaP384Verifier};
 pub use ecdsa_p521::{EcdsaP521Signer, EcdsaP521Verifier};
+// CurveId is defined in lib.rs itself; with_ecdsa_signer/verifier are free functions below.
 
 /// ECDSA signature encoding format.
 ///
@@ -82,6 +83,92 @@ use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 use oxicrypto_core::{CryptoError, SecretKey, SecretVec, Signer, Verifier};
 use p256::elliptic_curve::Generate;
 use zeroize::Zeroize;
+
+// ── CurveId: unified ECDSA curve selector ────────────────────────────────────
+//
+// Provides an ergonomic alternative to the per-curve signer/verifier types for
+// scenarios where the curve is known only at runtime (protocol negotiation,
+// config-file-driven selection, etc.). The per-curve types (`EcdsaP256Signer`,
+// `EcdsaP384Signer`, `EcdsaP521Signer`) remain the preferred API for
+// compile-time-known curves.
+
+/// ECDSA curve selector for use with [`with_ecdsa_signer`] and [`with_ecdsa_verifier`].
+///
+/// Provides a runtime-selectable alternative to the per-curve signer/verifier
+/// types. See [`with_ecdsa_signer`] for usage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CurveId {
+    /// NIST P-256 (secp256r1). Secret key: 32 bytes, public key: 33 bytes (compressed).
+    P256,
+    /// NIST P-384 (secp384r1). Secret key: 48 bytes, public key: 49 bytes (compressed).
+    P384,
+    /// NIST P-521 (secp521r1). Secret key: 66 bytes, public key: 67 bytes (compressed).
+    P521,
+}
+
+/// Signing closure type returned by [`with_ecdsa_signer`].
+///
+/// Arguments: `(sk_bytes, message)` → DER-encoded signature bytes.
+pub type EcdsaSignerFn = Box<dyn Fn(&[u8], &[u8]) -> Result<oxicrypto_core::Vec<u8>, CryptoError>>;
+
+/// Verification closure type returned by [`with_ecdsa_verifier`].
+///
+/// Arguments: `(pk_sec1_bytes, message, der_sig_bytes)` → `Ok(())` or error.
+pub type EcdsaVerifierFn = Box<dyn Fn(&[u8], &[u8], &[u8]) -> Result<(), CryptoError>>;
+
+/// Create an ECDSA signing closure for the given curve.
+///
+/// Returns a `Box<dyn Fn(&[u8], &[u8]) -> Result<Vec<u8>, CryptoError>>` where
+/// the first argument is the raw scalar key bytes and the second is the message.
+/// The returned closure signs using the deterministic RFC 6979 algorithm.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let sign = with_ecdsa_signer(CurveId::P256);
+/// let sig = sign(&sk_bytes, b"hello")?;
+/// ```
+///
+/// For compile-time-known curves prefer the direct per-curve types
+/// (`EcdsaP256Signer`, `EcdsaP384Signer`, `EcdsaP521Signer`) instead.
+pub fn with_ecdsa_signer(curve: CurveId) -> EcdsaSignerFn {
+    match curve {
+        CurveId::P256 => Box::new(|sk: &[u8], msg: &[u8]| {
+            crate::ecdsa_p256::EcdsaP256Signer::from_bytes(sk)?.sign(msg)
+        }),
+        CurveId::P384 => Box::new(|sk: &[u8], msg: &[u8]| {
+            crate::ecdsa_p384::EcdsaP384Signer::from_bytes(sk)?.sign(msg)
+        }),
+        CurveId::P521 => Box::new(|sk: &[u8], msg: &[u8]| {
+            crate::ecdsa_p521::EcdsaP521Signer::from_bytes(sk)?.sign(msg)
+        }),
+    }
+}
+
+/// Create an ECDSA signature-verification closure for the given curve.
+///
+/// Returns a `Box<dyn Fn(&[u8], &[u8], &[u8]) -> Result<(), CryptoError>>` where
+/// the arguments are: SEC1 public key bytes, message bytes, DER signature bytes.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let verify = with_ecdsa_verifier(CurveId::P256);
+/// verify(&pk_sec1_bytes, b"hello", &sig)?;
+/// ```
+pub fn with_ecdsa_verifier(curve: CurveId) -> EcdsaVerifierFn {
+    match curve {
+        CurveId::P256 => Box::new(|pk: &[u8], msg: &[u8], sig: &[u8]| {
+            crate::ecdsa_p256::EcdsaP256Verifier::from_sec1_bytes(pk)?.verify(msg, sig)
+        }),
+        CurveId::P384 => Box::new(|pk: &[u8], msg: &[u8], sig: &[u8]| {
+            crate::ecdsa_p384::EcdsaP384Verifier::from_sec1_bytes(pk)?.verify(msg, sig)
+        }),
+        CurveId::P521 => Box::new(|pk: &[u8], msg: &[u8], sig: &[u8]| {
+            crate::ecdsa_p521::EcdsaP521Verifier::from_sec1_bytes(pk)?.verify(msg, sig)
+        }),
+    }
+}
 
 // ── Ed448 key generation ──────────────────────────────────────────────────────
 
@@ -1335,5 +1422,96 @@ mod tests {
         scheme
             .verify_message(&pk, msg, &sig)
             .expect("verify failed");
+    }
+
+    // ── CurveId unified ECDSA constructor tests ───────────────────────────────
+
+    /// with_ecdsa_signer(P256) must produce signatures that verify under
+    /// with_ecdsa_verifier(P256) for the same key material.
+    #[test]
+    fn curve_id_p256_sign_verify_roundtrip() {
+        let sk_bytes = [0x42u8; 32];
+        let signer = EcdsaP256Signer::from_bytes(&sk_bytes).expect("P256 signer");
+        let pk_bytes = signer.verifying_key_bytes();
+        let msg = b"CurveId P256 round-trip test";
+
+        let sign = with_ecdsa_signer(CurveId::P256);
+        let verify = with_ecdsa_verifier(CurveId::P256);
+
+        let sig = sign(&sk_bytes, msg).expect("CurveId sign P256");
+        verify(&pk_bytes, msg, &sig).expect("CurveId verify P256");
+    }
+
+    /// with_ecdsa_signer(P384) must produce signatures that verify under
+    /// with_ecdsa_verifier(P384).
+    #[test]
+    fn curve_id_p384_sign_verify_roundtrip() {
+        let sk_bytes = [0x7Fu8; 48];
+        let signer = EcdsaP384Signer::from_bytes(&sk_bytes).expect("P384 signer");
+        let pk_bytes = signer.verifying_key_bytes();
+        let msg = b"CurveId P384 round-trip test";
+
+        let sign = with_ecdsa_signer(CurveId::P384);
+        let verify = with_ecdsa_verifier(CurveId::P384);
+
+        let sig = sign(&sk_bytes, msg).expect("CurveId sign P384");
+        verify(&pk_bytes, msg, &sig).expect("CurveId verify P384");
+    }
+
+    /// with_ecdsa_signer(P521) must produce signatures that verify under
+    /// with_ecdsa_verifier(P521).
+    ///
+    /// Key: RFC 6979 §A.2.7 P-521 private scalar (48 bytes, zero-padded to 66).
+    #[test]
+    fn curve_id_p521_sign_verify_roundtrip() {
+        // RFC 6979 §A.2.7 P-521 private scalar, zero-padded to 66 bytes.
+        let raw: &[u8] = &[
+            0x0F, 0xAD, 0x06, 0xDA, 0xA6, 0x2B, 0xA3, 0xB2, 0x5D, 0x2F, 0xB4, 0x01, 0x33, 0xDA,
+            0x75, 0x72, 0x05, 0xDE, 0x67, 0xF5, 0xBB, 0x00, 0x18, 0xFE, 0xE8, 0xC8, 0x6E, 0x1B,
+            0x68, 0xC7, 0xE7, 0x5C, 0xAA, 0x89, 0x6E, 0xB3, 0x2F, 0x1F, 0x47, 0xC7, 0x0B, 0xE8,
+            0x9F, 0x7B, 0x89, 0x3A, 0xBB, 0xED,
+        ];
+        let mut sk_bytes = [0u8; 66];
+        sk_bytes[66 - raw.len()..].copy_from_slice(raw);
+
+        let signer = EcdsaP521Signer::from_bytes(&sk_bytes).expect("P521 signer");
+        let pk_bytes = signer.verifying_key_bytes();
+        let msg = b"CurveId P521 round-trip test";
+
+        let sign = with_ecdsa_signer(CurveId::P521);
+        let verify = with_ecdsa_verifier(CurveId::P521);
+
+        let sig = sign(&sk_bytes, msg).expect("CurveId sign P521");
+        verify(&pk_bytes, msg, &sig).expect("CurveId verify P521");
+    }
+
+    /// Cross-curve verification must fail: P-256 sig must not verify with P-384 verifier.
+    #[test]
+    fn curve_id_cross_curve_fails() {
+        let sk_p256 = [0x11u8; 32];
+        let signer_p256 = EcdsaP256Signer::from_bytes(&sk_p256).expect("P256 signer");
+        let pk_p256 = signer_p256.verifying_key_bytes();
+
+        let msg = b"cross-curve must fail";
+        let sign = with_ecdsa_signer(CurveId::P256);
+        let sig = sign(&sk_p256, msg).expect("CurveId sign P256");
+
+        // Try to verify P-256 signature with the P-384 verifier (wrong key bytes → error).
+        let verify_p384 = with_ecdsa_verifier(CurveId::P384);
+        // pk_p256 is 33 bytes (P-256 compressed); P-384 expects 49 bytes → must fail.
+        let result = verify_p384(&pk_p256, msg, &sig);
+        assert!(
+            result.is_err(),
+            "P-256 sig must not verify under P-384 verifier"
+        );
+    }
+
+    /// CurveId enum variants are distinct (covers Debug + PartialEq derives).
+    #[test]
+    fn curve_id_enum_distinctness() {
+        assert_ne!(CurveId::P256, CurveId::P384);
+        assert_ne!(CurveId::P384, CurveId::P521);
+        assert_ne!(CurveId::P256, CurveId::P521);
+        assert_eq!(CurveId::P256, CurveId::P256);
     }
 }

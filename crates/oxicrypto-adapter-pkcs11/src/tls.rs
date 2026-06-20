@@ -29,7 +29,7 @@
 //! # use oxicrypto_adapter_pkcs11::provider::Pkcs11Provider;
 //! # use oxicrypto_adapter_pkcs11::tls::Pkcs11TlsSigningKey;
 //! # fn example(provider: Arc<Pkcs11Provider>) {
-//! let signing_key = Pkcs11TlsSigningKey::new(provider, "my-ecdsa-key")
+//! let signing_key = Pkcs11TlsSigningKey::new_ecdsa(provider, "my-ecdsa-key")
 //!     .expect("signing key");
 //! // Pass `signing_key` to a `rustls::ServerConfig` builder.
 //! # let _ = signing_key;
@@ -197,7 +197,7 @@ fn preferred_schemes(algorithm: SignatureAlgorithm) -> &'static [SignatureScheme
 
 /// A single-use [`rustls::sign::Signer`] backed by a PKCS#11 session.
 ///
-/// Created by [`Pkcs11TlsSigningKey::choose_scheme`] and discarded after one
+/// Created by `Pkcs11TlsSigningKey::choose_scheme` (via [`rustls::sign::SigningKey`]) and discarded after one
 /// signature operation.  The signing key handle and mechanism are fixed at
 /// construction.
 #[derive(Debug)]

@@ -1,6 +1,6 @@
 # OxiCrypto
 
-**Version 0.1.2 — 2026-06-10**
+**Version 0.1.3 — released 2026-06-19**
 
 OxiCrypto is the COOLJAPAN-blessed Pure Rust cryptographic primitives layer:
 hashes, MACs, AEADs, signatures, key exchange, KDFs, password hashing, PRNGs,
@@ -12,7 +12,7 @@ The non-negotiable goal: a fresh `rust:slim` container running
 `cargo build --no-default-features` succeeds with zero `apt-get install` and no
 C toolchain.
 
-## Status: v0.1.2 — All milestones M0–M5 complete
+## Status: v0.1.3 — All milestones M0–M5 complete
 
 | Milestone | Description | Status |
 |-----------|-------------|--------|
@@ -24,8 +24,8 @@ C toolchain.
 | M5 | Bounded FFI: aws-lc adapter (FIPS), PKCS#11 HSM adapter | Done |
 | Post-M5 | BLAKE2, XOFs, KMAC, HPKE, SLH-DSA, hybrid KEMs, BIP-340, FROST | Done |
 
-**Test coverage:** 1558 tests pass (25 slow SLH-DSA `-s` parameter tests marked `#[ignore]`).
-**SLOC:** ~31,500 lines of Rust across 14 crates (160 files).
+**Test coverage:** 1718 tests pass (32 slow SLH-DSA `-s` parameter tests marked `#[ignore]`). Includes RFC 8032 §7.4 KATs for Ed448ph and Ed448ctx.
+**SLOC:** ~47,647 lines of Rust across 14 crates (216 files).
 
 ## Workspace Crates
 
@@ -50,10 +50,10 @@ C toolchain.
 
 ```toml
 [dependencies]
-oxicrypto = "0.1.2"
+oxicrypto = "0.1.3"
 
 # Post-quantum primitives (off by default):
-oxicrypto = { version = "0.1.2", features = ["pq-preview"] }
+oxicrypto = { version = "0.1.3", features = ["pq-preview"] }
 ```
 
 ### Hash

@@ -292,8 +292,8 @@ pub mod pq {
 ///
 /// | Type | PQ | Classical | Combiner |
 /// |------|----|-----------|---------|
-/// | [`XWing768`] | ML-KEM-768 | X25519 | SHA3-256 per draft-connolly-cfrg-xwing-kem-04 |
-/// | [`HybridKem1024P384`] | ML-KEM-1024 | ECDH P-384 | HKDF-SHA-384 |
+/// | `XWing768` | ML-KEM-768 | X25519 | SHA3-256 per draft-connolly-cfrg-xwing-kem-04 |
+/// | `HybridKem1024P384` | ML-KEM-1024 | ECDH P-384 | HKDF-SHA-384 |
 ///
 /// # Example
 ///

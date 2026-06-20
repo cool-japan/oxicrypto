@@ -42,12 +42,12 @@ Feature-gated (`aws-lc` feature, default off) BOUNDED_FFI adapter bridging `aws-
   - **Goal:** Error-path tests for wrong key length, zero nonce, empty ciphertext. **Files:** tests/. **Risk:** Low.
 
 ## Performance
-- [~] Add criterion benchmarks: AEAD seal/open throughput for 1KB/64KB/1MB payloads across all three algorithms (~80 SLOC) (planned 2026-06-03)
-  - **Goal:** Criterion AEAD throughput benchmarks for 1KB/64KB/1MB payloads. **Files:** benches/. **Risk:** Low.
-- [~] Add criterion benchmarks: Ed25519 sign+verify and ECDSA-P256 sign+verify latency (~50 SLOC) (planned 2026-06-03)
-  - **Goal:** Criterion sign+verify latency benchmarks for Ed25519 and ECDSA-P256. **Files:** benches/. **Risk:** Low.
-- [~] Add criterion benchmarks: SHA-256/384/512 hashing throughput for 1KB/1MB inputs compared to Pure Rust oxicrypto-hash (~60 SLOC) (planned 2026-06-03)
-  - **Goal:** Criterion hash throughput benchmarks vs Pure Rust oxicrypto-hash. **Files:** benches/. **Risk:** Low.
+- [x] Add criterion benchmarks: AEAD seal/open throughput for 1KB/64KB/1MB payloads across all three algorithms (~80 SLOC) (done 2026-06-19 — `benches/aws_lc_aead.rs`: `bench_aws_lc_aead_throughput` (4 variants at 3 sizes), `bench_aws_lc_vs_pure_rust_aes256gcm` (head-to-head at 3 sizes), `bench_aws_lc_aead_open_throughput`; all 3 bench binaries compile clean with `--features aws-lc`)
+  - **Goal:** Criterion AEAD throughput benchmarks for 1KB/64KB/1MB payloads. **Files:** benches/aws_lc_aead.rs. **Risk:** Low.
+- [x] Add criterion benchmarks: Ed25519 sign+verify and ECDSA-P256 sign+verify latency (~50 SLOC) (done 2026-06-19 — `benches/aws_lc_sig.rs`: Ed25519 sign + verify + ECDSA-P256 sign + verify, head-to-head aws-lc-rs vs pure-rust oxicrypto-sig; required-features = ["aws-lc"])
+  - **Goal:** Criterion sign+verify latency benchmarks for Ed25519 and ECDSA-P256. **Files:** benches/aws_lc_sig.rs. **Risk:** Low.
+- [x] Add criterion benchmarks: SHA-256/384/512 hashing throughput for 1KB/1MB inputs compared to Pure Rust oxicrypto-hash (~60 SLOC) (done 2026-06-19 — `benches/aws_lc_hash.rs`: `bench_aws_lc_hash_throughput` (SHA-256/384/512 at 1 KiB + 1 MiB) + head-to-head vs pure-rust for all three; required-features = ["aws-lc"])
+  - **Goal:** Criterion hash throughput benchmarks vs Pure Rust oxicrypto-hash. **Files:** benches/aws_lc_hash.rs. **Risk:** Low.
 
 ## Integration
 - [x] Wire into `oxicrypto` facade crate behind a `fips` or `aws-lc` feature so users can `use oxicrypto::fips::Aead` (~30 SLOC in oxicrypto facade) (planned 2026-06-03)

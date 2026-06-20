@@ -136,8 +136,7 @@ Post-quantum cryptography suite (33 + 311 + 262 = ~606 SLOC across 3 files). Imp
   **BLOCKED: upstream** — composite signature standard (draft-ietf-pquip-hybrid-signature-spectrums) is not yet finalized; blocked on IETF/NIST decision
 - [ ] Provide PQ algorithm negotiation for OxiTLS: TLS 1.3 key share with ML-KEM
   **BLOCKED: cross-crate** — Requires `oxitls` to expose key-share extension API; blocked on oxitls PQ roadmap
-- [ ] Add ML-KEM and ML-DSA benchmarks to `oxicrypto-bench` criterion suite
-  **BLOCKED: cross-crate** — `oxicrypto-bench` workspace crate must be updated to pull `oxicrypto-pq` as a dependency; currently `pq_benchmarks.rs` in this crate already covers all benchmarks locally
+- [x] Add ML-KEM and ML-DSA benchmarks to `oxicrypto-bench` criterion suite (done — `oxicrypto-bench/benches/pq.rs` covers ML-KEM-512/768/1024 keygen/encap/decap and ML-DSA-44/65/87 keygen/sign/verify; see `oxicrypto-bench/TODO.md` lines 18-19)
 - [ ] Track `ml-kem` and `ml-dsa` crate updates: pin exact versions until 1.0 to avoid API breakage
   **DEFERRED: maintenance** — Cargo.toml already pins exact versions (`ml-kem = "0.3.2"`, `ml-dsa = "0.1.0"`); ongoing monitoring task, no code changes needed
 - [x] Research `slh-dsa` crate availability on crates.io for SLH-DSA (FIPS 205) implementation

@@ -4,6 +4,12 @@ All notable changes to OxiCrypto are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-06-19
+
+### Added
+
+- **RFC 8032 §7.4 KAT suite for Ed448ph / Ed448ctx** (oxicrypto-sig) — new `kat_ed448ph.rs` integration-test file pins the exact 114-byte signatures published in RFC 8032 §7.4 for two test vectors: (1) `Ed448ph` with pre-hash `SHAKE256(msg, 64)` over `"abc"` with an empty context; (2) `Ed448ctx` over `0x03` with context `"foo"`. Six tests in total cover sign, verify, tampered-message rejection (wrong message byte, mismatched context), wrong-context cross-verification, and oversized-context (> 255 bytes) rejection on sign.
+
 ## [0.1.2] - 2026-06-10
 
 ### Added
@@ -161,6 +167,7 @@ versions in `Cargo.toml`. No custom cryptographic primitives are written.
 The default feature set is 100% Pure Rust with zero `*-sys` crates.
 Bounded FFI adapters (aws-lc, pkcs11) are strictly feature-gated.
 
+[0.1.3]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.3
 [0.1.2]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.2
 [0.1.1]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.1
 [0.1.0]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.0

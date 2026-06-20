@@ -114,10 +114,8 @@ Minimal trait surface (187 SLOC). Defines `CryptoError` enum, seven trait object
 - [x] Ensure `SecretKey<N>` is stack-allocated with no heap indirection for N <= 64 (done 2026-06-03)
   - **Goal:** Assert `SecretKey<32>` and `SecretKey<64>` have exactly N bytes of size (no heap indirection).
   - **Files:** `oxicrypto-core/src/tests.rs`. **Tests:** `test_secretkey_size_no_heap`. **Risk:** Low.
-- [ ] Benchmark `ct_eq` vs naive `==` to verify constant-time property has acceptable overhead
-  **DEFERRED: Requires criterion benchmark harness setup; deferred to a future `/ultra bench` pass (see Proposed follow-ups).**
-- [ ] Profile `Zeroize` overhead on `SecretVec` drop path
-  **DEFERRED: Requires criterion benchmark harness setup; deferred to a future `/ultra bench` pass (see Proposed follow-ups).**
+- [x] Benchmark `ct_eq` vs naive `==` to verify constant-time property has acceptable overhead (done 2026-06-19 — `oxicrypto-bench/benches/core.rs`: `bench_ct_eq_equal`, `bench_ct_eq_unequal`, `bench_ct_eq_scaling` covering 16 B → 16 KiB; both equal and last-byte-unequal cases; linear-scaling verification group)
+- [x] Profile `Zeroize` overhead on `SecretVec` drop path (done 2026-06-19 — `oxicrypto-bench/benches/core.rs`: `bench_secretvec_drop` using `iter_batched(SmallInput)` to isolate zeroize cost from allocation; 32 B / 256 B / 4 KiB / 64 KiB sizes; head-to-head `SecretVec` vs plain `Vec<u8>` drop)
 
 ## Integration
 - [x] Ensure `oxicrypto-sig` Ed448/ECDSA/RSA types use `SecretKey` wrapper for private key storage (verified 2026-06-10)
@@ -136,4 +134,4 @@ Minimal trait surface (187 SLOC). Defines `CryptoError` enum, seven trait object
 
 - `api-debug-bound` (L60): Adding `Debug` as a supertrait on all core traits would be a breaking change. Resolution: propose adding `Debug` as an optional supertrait behind a `debug` Cargo feature flag in a future WI.
 - `serde-cryptoerror` (L79): ~~Blocked on `oxicode`~~ **Completed 2026-06-03** — `oxicode` 0.2.3 available; `serde` feature implemented.
-- `bench-cteq`, `profile-zeroize` (L93, L94): Benchmarks deferred to a future `/ultra bench` pass.
+- `bench-cteq`, `profile-zeroize` (formerly L93, L94): **Completed 2026-06-19** — `oxicrypto-bench/benches/core.rs` implements all four benchmark groups.
