@@ -5,7 +5,7 @@
 
 `oxicrypto` is the top-level façade crate for the OxiCrypto stack. It aggregates the individual Pure-Rust primitive crates (hashes, AEADs, ciphers, MACs, signatures, key exchange, KDFs, CSPRNG, and an optional post-quantum preview) behind one coherent API: trait re-exports from [`oxicrypto-core`](../oxicrypto-core), `*Algo` selector enums with `*_impl()` factory functions returning trait objects, convenience one-shot helpers, runtime feature/algorithm introspection, and named algorithm suites. Everything in the default build is `#![forbid(unsafe_code)]` and 100% Pure Rust — no C, C++, or Fortran.
 
-Two optional, **non-Pure-Rust** adapters can be enabled behind feature flags: [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc) (FIPS-validated `aws-lc-rs`, surfaced at `oxicrypto::aws_lc`) and [`oxicrypto-adapter-pkcs11`](../oxicrypto-adapter-pkcs11) (PKCS#11 HSM via `cryptoki`, surfaced at `oxicrypto::pkcs11`). These involve C/FFI and are **off by default**; the Pure-Rust `pure` feature is the default.
+As of **0.2.0**, the non-Pure-Rust adapters (`aws-lc-rs` and PKCS#11 HSM) are **not** re-exported through this facade. To use them, depend on [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc) or [`oxicrypto-adapter-pkcs11`](../oxicrypto-adapter-pkcs11) directly. The default build and `--all-features` on this crate are 100% Pure Rust.
 
 ## Sub-crates aggregated by `oxicrypto`
 
@@ -21,28 +21,27 @@ Two optional, **non-Pure-Rust** adapters can be enabled behind feature flags: [`
 | [`oxicrypto-kdf`](../oxicrypto-kdf) | crate root + `KdfAlgo`/`kdf_impl` | `pure` |
 | [`oxicrypto-rand`](../oxicrypto-rand) | crate root (`random_bytes`, `new_rng`, …) | `pure` |
 | [`oxicrypto-pq`](../oxicrypto-pq) | `oxicrypto::pq` + `PqKemAlgo`/`PqSigAlgo` | `pq-preview` |
-| [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc) | `oxicrypto::aws_lc` | `aws-lc` (non-Pure-Rust) |
-| [`oxicrypto-adapter-pkcs11`](../oxicrypto-adapter-pkcs11) | `oxicrypto::pkcs11` | `pkcs11` (non-Pure-Rust) |
 
 ## Installation
 
 ```toml
 [dependencies]
 # Default: all Pure-Rust primitives (hash, aead, cipher, mac, sig, kex, kdf, rand).
-oxicrypto = "0.1.0"
+oxicrypto = "0.2.0"
 
 # Trait surface only — no algorithm implementations.
-oxicrypto = { version = "0.1.0", default-features = false }
+oxicrypto = { version = "0.2.0", default-features = false }
 
 # Add explicit runtime CPU-feature detection (oxicrypto::simd::cpu_info()).
-oxicrypto = { version = "0.1.0", features = ["simd"] }
+oxicrypto = { version = "0.2.0", features = ["simd"] }
 
 # Add the post-quantum preview (ML-KEM, ML-DSA, SLH-DSA, X-Wing).
-oxicrypto = { version = "0.1.0", features = ["pq-preview"] }
+oxicrypto = { version = "0.2.0", features = ["pq-preview"] }
 
-# Opt-in, NON-Pure-Rust adapters (require a C toolchain / HSM).
-oxicrypto = { version = "0.1.0", features = ["aws-lc"] }   # aws-lc-rs (FIPS)
-oxicrypto = { version = "0.1.0", features = ["pkcs11"] }   # PKCS#11 HSM
+# Non-Pure-Rust adapters are NOT part of the oxicrypto facade from 0.2.0.
+# Add the adapter crates directly if needed:
+#   oxicrypto-adapter-aws-lc = { version = "0.2.0", features = ["aws-lc"] }
+#   oxicrypto-adapter-pkcs11 = { version = "0.2.0", features = ["pkcs11"] }
 ```
 
 ## Quick Start
@@ -214,13 +213,13 @@ All `*Algo` enums are `#[non_exhaustive]`, `Copy`, and implement `Display`,
 - KEX: `EcdhP256`, `EcdhP384`; HPKE (`oxicrypto::hpke`): `HpkeSuite`, `HpkeContextS`, `HpkeContextR`, `KemId`, `KdfId`, `AeadId` (RFC 9180).
 - RNG: `random_bytes`, `random_nonce`, `random_range`, `reseed`.
 
-## Optional adapter modules
+## Optional modules
 
 | Module | Feature | Pure Rust? | Description |
 |--------|---------|-----------|-------------|
-| `oxicrypto::aws_lc` | `aws-lc` | **No** (C / FIPS via aws-lc-rs) | Re-exports [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc): AES-GCM/ChaCha20-Poly1305 AEAD, SHA-2 hashes, Ed25519 + ECDSA-P256 signers/verifiers. |
-| `oxicrypto::pkcs11` | `pkcs11` | **No** (C / HSM via cryptoki) | Re-exports [`oxicrypto-adapter-pkcs11`](../oxicrypto-adapter-pkcs11): HSM provider, signer/verifier, and symmetric encrypt/decrypt. Requires a PKCS#11 module at runtime. |
 | `oxicrypto::pq` | `pq-preview` | Yes | Re-exports [`oxicrypto-pq`](../oxicrypto-pq): ML-KEM, ML-DSA, SLH-DSA, X-Wing. API may change. |
+
+> **0.2.0 change:** The `oxicrypto::aws_lc` and `oxicrypto::pkcs11` modules have been removed from this facade. Users needing the aws-lc-rs FIPS backend or PKCS#11 HSM support must depend on [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc) and [`oxicrypto-adapter-pkcs11`](../oxicrypto-adapter-pkcs11) directly.
 
 ## Feature Flags
 
@@ -230,8 +229,6 @@ All `*Algo` enums are `#[non_exhaustive]`, `Copy`, and implement `Display`,
 | `std` | off | Yes | Propagates `std` to the sub-crates (thread-local RNG, etc.). |
 | `simd` | off | Yes | Exposes `oxicrypto::simd::cpu_info()` for explicit runtime CPU-feature detection (AES-NI, SHA-NI, AVX2, NEON). The RustCrypto crates already dispatch internally; this makes it visible/testable. |
 | `pq-preview` | off | Yes | Post-quantum preview: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), X-Wing. Adds `oxicrypto::pq`, `PqKemAlgo`/`PqSigAlgo`, the `pq_*` helpers, and `PqSuite`. |
-| `aws-lc` | off | **No** | Enables the `aws-lc-rs`-backed adapter at `oxicrypto::aws_lc` (FIPS-validated, C-backed). |
-| `pkcs11` | off | **No** | Enables the PKCS#11 HSM adapter at `oxicrypto::pkcs11` (C-backed via `cryptoki`). |
 
 ### Feature → algorithm matrix
 
@@ -293,7 +290,7 @@ cargo run -p oxicrypto --example pq_kem --features pq-preview  # ML-KEM (PQ)
 - [`oxicrypto-core`](../oxicrypto-core) — trait surface, `CryptoError`, `AlgorithmId`, secure wrappers.
 - [`oxicrypto-hash`](../oxicrypto-hash), [`oxicrypto-aead`](../oxicrypto-aead), [`oxicrypto-cipher`](../oxicrypto-cipher), [`oxicrypto-mac`](../oxicrypto-mac), [`oxicrypto-sig`](../oxicrypto-sig), [`oxicrypto-kex`](../oxicrypto-kex), [`oxicrypto-kdf`](../oxicrypto-kdf), [`oxicrypto-rand`](../oxicrypto-rand) — the Pure-Rust primitive crates.
 - [`oxicrypto-pq`](../oxicrypto-pq) — post-quantum primitives (`pq-preview`).
-- [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc), [`oxicrypto-adapter-pkcs11`](../oxicrypto-adapter-pkcs11) — opt-in, non-Pure-Rust adapters.
+- [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc), [`oxicrypto-adapter-pkcs11`](../oxicrypto-adapter-pkcs11) — standalone non-Pure-Rust adapters (not re-exported via this facade from 0.2.0; depend on them directly).
 - [`oxicrypto-bench`](../oxicrypto-bench) — Criterion benchmarks against `ring` and `aws-lc-rs`.
 
 ## License

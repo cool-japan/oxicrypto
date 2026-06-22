@@ -5,22 +5,17 @@
 
 `oxicrypto-adapter-aws-lc` implements the core OxiCrypto traits (`Aead`, `Hash`, `Signer`, `Verifier` from [`oxicrypto-core`](../oxicrypto-core)) on top of [`aws-lc-rs`](https://crates.io/crates/aws-lc-rs), the FIPS-validated cryptographic library maintained by AWS. It lets an application that is already written against the OxiCrypto trait surface swap selected primitives for the hardware-accelerated, FIPS-mode `aws-lc-rs` implementations without changing call sites.
 
-> **Not Pure Rust.** `aws-lc-rs` wraps the AWS-LC C library (a BoringSSL/OpenSSL derivative) and pulls in a C toolchain (or a prebuilt binary) at build time. This adapter is therefore **C/FFI-backed**, in deliberate contrast to the default Pure-Rust OxiCrypto stack. It is **opt-in and non-default**: the crate exposes **no types** unless the `aws-lc` feature is enabled, and the parent `oxicrypto` facade only re-exports it under `oxicrypto::aws_lc` when built with `features = ["aws-lc"]`. Use it when FIPS 140 validation or AWS-LC parity is a hard requirement; otherwise prefer the Pure-Rust crates.
+> **Not Pure Rust.** `aws-lc-rs` wraps the AWS-LC C library (a BoringSSL/OpenSSL derivative) and pulls in a C toolchain (or a prebuilt binary) at build time. This adapter is therefore **C/FFI-backed**, in deliberate contrast to the default Pure-Rust OxiCrypto stack. It is **opt-in and non-default**: the crate exposes **no types** unless the `aws-lc` feature is enabled, and from **0.2.0** the parent `oxicrypto` facade no longer re-exports it — depend on this crate directly. Use it when FIPS 140 validation or AWS-LC parity is a hard requirement; otherwise prefer the Pure-Rust crates.
 
 ## Installation
 
 ```toml
 [dependencies]
 # Types are only compiled in when the `aws-lc` feature is on.
-oxicrypto-adapter-aws-lc = { version = "0.1.0", features = ["aws-lc"] }
+oxicrypto-adapter-aws-lc = { version = "0.2.0", features = ["aws-lc"] }
 ```
 
-Or, more commonly, enable it transitively through the facade:
-
-```toml
-[dependencies]
-oxicrypto = { version = "0.1.0", features = ["aws-lc"] }
-```
+From **oxicrypto 0.2.0**, the `aws-lc` feature is no longer available on the `oxicrypto` facade. Depend on this adapter crate directly instead of going via the facade.
 
 A C compiler / build environment compatible with `aws-lc-rs` is required at
 build time. See the [`aws-lc-rs` requirements](https://crates.io/crates/aws-lc-rs)
@@ -134,7 +129,7 @@ The variants it actually produces are:
 ## Cross-references
 
 - [`oxicrypto-core`](../oxicrypto-core) — the `Aead`, `Hash`, `Signer`, `Verifier`, and `CryptoError` definitions this adapter implements.
-- [`oxicrypto`](../oxicrypto) — Pure-Rust facade; re-exports this adapter at `oxicrypto::aws_lc` under the `aws-lc` feature.
+- [`oxicrypto`](../oxicrypto) — Pure-Rust facade; from 0.2.0 this adapter must be depended on directly (no longer re-exported via `oxicrypto::aws_lc`).
 - [`oxicrypto-aead`](../oxicrypto-aead) / [`oxicrypto-hash`](../oxicrypto-hash) / [`oxicrypto-sig`](../oxicrypto-sig) — the Pure-Rust counterparts these primitives can substitute for.
 - [`oxicrypto-adapter-pkcs11`](../oxicrypto-adapter-pkcs11) — the other opt-in, non-Pure-Rust adapter (HSM via PKCS#11).
 - [`oxicrypto-bench`](../oxicrypto-bench) — benchmarks that compare OxiCrypto against `aws-lc-rs` and `ring`.

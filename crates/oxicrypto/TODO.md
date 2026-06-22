@@ -1,7 +1,7 @@
 # oxicrypto (facade) TODO
 
 ## Status
-Facade crate (477 SLOC). Re-exports all subcrate types and provides algorithm selector enums (`HashAlgo`, `AeadAlgo`, `MacAlgo`, `SigAlgo`, `KexAlgo`, `KdfAlgo`) with factory functions returning boxed trait objects. Features: `pure` (default-on, all algorithms), `simd` (CPU feature detection), `pq-preview` (ML-KEM + ML-DSA). Known gaps: `SigAlgo` only has Ed25519 despite 6 signature algorithms being implemented; `KexAlgo` only has X25519; `KdfAlgo` only has HKDF variants.
+Facade crate (477 SLOC). Re-exports all subcrate types and provides algorithm selector enums (`HashAlgo`, `AeadAlgo`, `MacAlgo`, `SigAlgo`, `KexAlgo`, `KdfAlgo`) with factory functions returning boxed trait objects. Features: `pure` (default-on, all algorithms), `simd` (CPU feature detection), `pq-preview` (ML-KEM + ML-DSA). As of 0.2.0, the `aws-lc` and `pkcs11` features have been removed from the facade. Known gaps: `SigAlgo` only has Ed25519 despite 6 signature algorithms being implemented; `KexAlgo` only has X25519; `KdfAlgo` only has HKDF variants.
 
 ## Core Implementation
 - [x] Expand `SigAlgo` enum with all implemented algorithms: `Ed448`, `EcdsaP256`, `EcdsaP384`, `EcdsaP521`, `RsaPkcs1v15Sha256`, `RsaPkcs1v15Sha384`, `RsaPkcs1v15Sha512`, `RsaPssSha256` (~20 SLOC)
@@ -178,3 +178,5 @@ Facade crate (477 SLOC). Re-exports all subcrate types and provides algorithm se
   - `factory_overhead.rs` explicitly benchmarks factory vs direct-instantiation for each algorithm family.
 - [x] Coordinate with OxiTLS for TLS 1.3 cipher suite negotiation using facade enums (done 2026-06-03: guidance documented in facade)
   - **Architecture guidance added:** The `oxicrypto` facade `lib.rs` now documents which types to use for TLS 1.3 construction. The TLS 1.3 standard (RFC 8446) mandates specific algorithm combinations; the facade already exposes all required primitives. Full automated cipher-suite negotiation (where OxiTLS accepts `oxicrypto` facade enums directly) requires an API addition on the OxiTLS side — blocked on external project. In the interim, the doc comment in `oxicrypto/src/lib.rs` guides OxiTLS integrators to the correct type choices.
+
+- [x] **0.2.0 quarantine:** Removed `aws-lc` and `pkcs11` features from the `oxicrypto` facade. The adapter crates remain as workspace members but are no longer re-exported. `--all-features` on the facade is now 100% Pure Rust (done 2026-06-22)

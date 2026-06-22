@@ -38,13 +38,6 @@ std = [
 # The underlying RustCrypto crates already use cpufeatures internally; this flag
 # makes the dispatch visible via `oxicrypto::simd::cpu_info()`.
 simd = ["dep:cpufeatures"]
-# Enable the aws-lc-rs backed AEAD/sig/hash adapter.
-aws-lc = ["dep:oxicrypto-adapter-aws-lc", "oxicrypto-adapter-aws-lc/aws-lc"]
-# Enable the PKCS#11 HSM adapter via cryptoki.
-pkcs11 = ["dep:oxicrypto-adapter-pkcs11", "oxicrypto-adapter-pkcs11/pkcs11"]
-# Alias: `hsm` enables the same PKCS#11 HSM adapter and exposes it as
-# `oxicrypto::hsm::*` (in addition to the existing `oxicrypto::pkcs11::*` path).
-hsm = ["pkcs11"]
 
 [dependencies]
 oxicrypto-core.workspace = true
@@ -61,8 +54,6 @@ rand_chacha     = { workspace = true, optional = true }
 rand_core       = { workspace = true, optional = true }
 getrandom       = { workspace = true, optional = true }
 cpufeatures                = { workspace = true, optional = true }
-oxicrypto-adapter-aws-lc   = { workspace = true, optional = true }
-oxicrypto-adapter-pkcs11   = { workspace = true, optional = true }
 
 [dev-dependencies]
 ed25519-dalek.workspace = true

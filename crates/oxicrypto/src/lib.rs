@@ -246,38 +246,6 @@ pub mod version;
 pub use version::PqSuite;
 pub use version::{available_algorithms, enabled_features, version, Suite, VersionInfo};
 
-// ── Optional adapters ─────────────────────────────────────────────────────────
-
-/// AEAD, signature, and hash implementations backed by aws-lc-rs.
-///
-/// Enable with `features = ["aws-lc"]`.  The underlying aws-lc-rs library
-/// is FIPS-validated and provides hardware-accelerated implementations.
-/// This module is **not** activated by the `pure` default features.
-#[cfg(feature = "aws-lc")]
-pub mod aws_lc {
-    pub use oxicrypto_adapter_aws_lc::*;
-}
-
-/// Provider, signer, and symmetric cipher backed by a PKCS#11 HSM.
-///
-/// Enable with `features = ["pkcs11"]`.  Requires a PKCS#11 module (e.g.
-/// SoftHSM2, nShield, Thales Luna) at runtime.
-/// This module is **not** activated by the `pure` default features.
-#[cfg(feature = "pkcs11")]
-pub mod pkcs11 {
-    pub use oxicrypto_adapter_pkcs11::*;
-}
-
-/// Hardware Security Module (HSM) adapter backed by PKCS#11.
-///
-/// Enable with `features = ["hsm"]`.  Re-exports all types from
-/// [`oxicrypto_adapter_pkcs11`] under `oxicrypto::hsm::*`.
-/// This module is **not** activated by the `pure` default features.
-#[cfg(feature = "hsm")]
-pub mod hsm {
-    pub use oxicrypto_adapter_pkcs11::*;
-}
-
 /// Post-quantum cryptography preview: ML-KEM (FIPS 203) + ML-DSA (FIPS 204).
 ///
 /// Enable with `features = ["pq-preview"]`.  API may change in future releases.

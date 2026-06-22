@@ -5,22 +5,17 @@
 
 `oxicrypto-adapter-pkcs11` bridges the OxiCrypto trait surface to a [PKCS#11](https://docs.oasis-open.org/pkcs11/) Hardware Security Module (HSM) via the [`cryptoki`](https://crates.io/crates/cryptoki) crate. It opens an authenticated session against a PKCS#11 token and exposes signer, verifier, and symmetric encrypt/decrypt adaptors that delegate every cryptographic operation to the HSM, so private key material never leaves the device.
 
-> **Not Pure Rust.** This adapter loads a vendor PKCS#11 dynamic library (e.g. SoftHSM2, Thales Luna, nShield, AWS CloudHSM) at runtime through the `cryptoki` FFI bindings. It therefore depends on a **C** module and external hardware/middleware, in deliberate contrast to the default Pure-Rust OxiCrypto stack. It is **opt-in and non-default**: the crate exposes **no types** unless the `pkcs11` feature is enabled, and the parent `oxicrypto` facade only re-exports it under `oxicrypto::pkcs11` when built with `features = ["pkcs11"]`. A PKCS#11 module must be present at runtime.
+> **Not Pure Rust.** This adapter loads a vendor PKCS#11 dynamic library (e.g. SoftHSM2, Thales Luna, nShield, AWS CloudHSM) at runtime through the `cryptoki` FFI bindings. It therefore depends on a **C** module and external hardware/middleware, in deliberate contrast to the default Pure-Rust OxiCrypto stack. It is **opt-in and non-default**: the crate exposes **no types** unless the `pkcs11` feature is enabled, and from **0.2.0** the parent `oxicrypto` facade no longer re-exports it — depend on this crate directly. A PKCS#11 module must be present at runtime.
 
 ## Installation
 
 ```toml
 [dependencies]
 # Types are only compiled in when the `pkcs11` feature is on.
-oxicrypto-adapter-pkcs11 = { version = "0.1.0", features = ["pkcs11"] }
+oxicrypto-adapter-pkcs11 = { version = "0.2.0", features = ["pkcs11"] }
 ```
 
-Or enable it transitively through the facade:
-
-```toml
-[dependencies]
-oxicrypto = { version = "0.1.0", features = ["pkcs11"] }
-```
+From **oxicrypto 0.2.0**, the `pkcs11` feature is no longer available on the `oxicrypto` facade. Depend on this adapter crate directly instead of going via the facade.
 
 At runtime you need a PKCS#11 provider library (a `.so` / `.dylib` / `.dll`)
 and a token with the keys you intend to use.
@@ -124,7 +119,7 @@ surface as `CryptoError`.
 ## Cross-references
 
 - [`oxicrypto-core`](../oxicrypto-core) — the `Signer`, `Verifier`, and `CryptoError` definitions this adapter implements.
-- [`oxicrypto`](../oxicrypto) — Pure-Rust facade; re-exports this adapter at `oxicrypto::pkcs11` under the `pkcs11` feature.
+- [`oxicrypto`](../oxicrypto) — Pure-Rust facade; from 0.2.0 this adapter must be depended on directly (no longer re-exported via `oxicrypto::pkcs11`).
 - [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc) — the other opt-in, non-Pure-Rust adapter (FIPS-validated `aws-lc-rs`).
 - [`oxicrypto-sig`](../oxicrypto-sig) — Pure-Rust signature primitives for software-key workflows.
 

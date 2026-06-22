@@ -4,6 +4,28 @@ All notable changes to OxiCrypto are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06-22
+
+### Removed
+
+- **`oxicrypto` facade**: removed `aws-lc`, `pkcs11`, and `hsm` feature flags and
+  their corresponding `pub mod aws_lc`, `pub mod pkcs11`, and `pub mod hsm` re-exports
+  (Pure Rust Policy v2 §5 quarantine enforcement).
+- Optional dependencies `oxicrypto-adapter-aws-lc` and `oxicrypto-adapter-pkcs11`
+  are no longer part of the default `oxicrypto` facade closure.
+
+### Changed
+
+- Workspace version bumped 0.1.3 → 0.2.0.
+- The quarantine crates `oxicrypto-adapter-aws-lc` and `oxicrypto-adapter-pkcs11`
+  remain as workspace members and are independently usable, but are no longer
+  re-exported through the `oxicrypto` facade.
+
+### Security
+
+- The default feature set of `oxicrypto` is now strictly 100% Pure Rust with zero
+  C-FFI crates reachable through any documented facade feature flag.
+
 ## [0.1.3] - 2026-06-19
 
 ### Added
@@ -167,6 +189,7 @@ versions in `Cargo.toml`. No custom cryptographic primitives are written.
 The default feature set is 100% Pure Rust with zero `*-sys` crates.
 Bounded FFI adapters (aws-lc, pkcs11) are strictly feature-gated.
 
+[0.2.0]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.2.0
 [0.1.3]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.3
 [0.1.2]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.2
 [0.1.1]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.1

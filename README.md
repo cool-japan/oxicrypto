@@ -1,6 +1,6 @@
 # OxiCrypto
 
-**Version 0.1.3 — released 2026-06-19**
+**Version 0.2.0 — released 2026-06-22**
 
 OxiCrypto is the COOLJAPAN-blessed Pure Rust cryptographic primitives layer:
 hashes, MACs, AEADs, signatures, key exchange, KDFs, password hashing, PRNGs,
@@ -12,7 +12,7 @@ The non-negotiable goal: a fresh `rust:slim` container running
 `cargo build --no-default-features` succeeds with zero `apt-get install` and no
 C toolchain.
 
-## Status: v0.1.3 — All milestones M0–M5 complete
+## Status: v0.2.0 — All milestones M0–M5 complete
 
 | Milestone | Description | Status |
 |-----------|-------------|--------|
@@ -24,7 +24,7 @@ C toolchain.
 | M5 | Bounded FFI: aws-lc adapter (FIPS), PKCS#11 HSM adapter | Done |
 | Post-M5 | BLAKE2, XOFs, KMAC, HPKE, SLH-DSA, hybrid KEMs, BIP-340, FROST | Done |
 
-**Test coverage:** 1718 tests pass (32 slow SLH-DSA `-s` parameter tests marked `#[ignore]`). Includes RFC 8032 §7.4 KATs for Ed448ph and Ed448ctx.
+**Test coverage:** 1673 tests pass (32 slow SLH-DSA `-s` parameter tests marked `#[ignore]`). Includes RFC 8032 §7.4 KATs for Ed448ph and Ed448ctx.
 **SLOC:** ~47,647 lines of Rust across 14 crates (216 files).
 
 ## Workspace Crates
@@ -50,10 +50,10 @@ C toolchain.
 
 ```toml
 [dependencies]
-oxicrypto = "0.1.3"
+oxicrypto = "0.2.0"
 
 # Post-quantum primitives (off by default):
-oxicrypto = { version = "0.1.3", features = ["pq-preview"] }
+oxicrypto = { version = "0.2.0", features = ["pq-preview"] }
 ```
 
 ### Hash
@@ -119,8 +119,16 @@ adapter edges and never in the default closure.
 |---------|-------------|
 | `pq-preview` | Enable post-quantum primitives (ML-KEM, ML-DSA, SLH-DSA, hybrid KEMs) |
 | `simd` | Runtime CPU feature detection (AES-NI, SHA-NI, AVX2) via `cpufeatures` |
-| `aws-lc` | Bounded FFI: use `aws-lc-rs` as backend for selected primitives |
-| `pkcs11` | Bounded FFI: use PKCS#11 HSM as backend |
+
+From **0.2.0**, the `aws-lc` and `pkcs11` features are no longer part of the `oxicrypto` facade. Applications requiring FIPS-validated (`aws-lc-rs`) or HSM-backed (`cryptoki`) primitives must add the adapter crates directly:
+
+```toml
+# FIPS / aws-lc-rs backend (C/FFI, not Pure Rust)
+oxicrypto-adapter-aws-lc = { version = "0.2.0", features = ["aws-lc"] }
+
+# PKCS#11 HSM backend (C/FFI, not Pure Rust)
+oxicrypto-adapter-pkcs11 = { version = "0.2.0", features = ["pkcs11"] }
+```
 
 ## Replaces (FFI being eliminated)
 
