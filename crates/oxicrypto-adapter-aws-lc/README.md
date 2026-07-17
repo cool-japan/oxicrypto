@@ -86,6 +86,7 @@ trait). `nonce_len()` is 12 and `tag_len()` is 16 for every variant.
 
 | Type | Implements | Output |
 |------|-----------|--------|
+| `AwsLcSha1` | `oxicrypto_core::Hash` | SHA-1, 20 bytes (legacy; cryptographically broken — for interop only) |
 | `AwsLcSha256` | `oxicrypto_core::Hash` | SHA-256, 32 bytes |
 | `AwsLcSha384` | `oxicrypto_core::Hash` | SHA-384, 48 bytes |
 | `AwsLcSha512` | `oxicrypto_core::Hash` | SHA-512, 64 bytes |
