@@ -11,12 +11,12 @@ The crate is **Pure Rust** with `#![forbid(unsafe_code)]`, wrapping the RustCryp
 
 ```toml
 [dependencies]
-oxicrypto-cipher = "0.1.0"
+oxicrypto-cipher = "0.2.1"
 ```
 
 ```toml
 # Inherit std from oxicrypto-core
-oxicrypto-cipher = { version = "0.1.0", features = ["std"] }
+oxicrypto-cipher = { version = "0.2.1", features = ["std"] }
 ```
 
 ## Quick Start

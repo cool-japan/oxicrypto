@@ -763,7 +763,7 @@ mod tests {
     #[test]
     fn mldsa87_sign_verify_round_trip() {
         std::thread::Builder::new()
-            .stack_size(8 * 1024 * 1024)
+            .stack_size(crate::stack_safe::OXICRYPTO_MLDSA_STACK)
             .spawn(|| {
                 let mut rng = ChaCha20Rng::from_seed([0xAAu8; 32]);
                 let (sk, vk) = MlDsa87::generate(&mut rng);
@@ -778,7 +778,7 @@ mod tests {
     #[test]
     fn mldsa87_wrong_message_fails() {
         std::thread::Builder::new()
-            .stack_size(8 * 1024 * 1024)
+            .stack_size(crate::stack_safe::OXICRYPTO_MLDSA_STACK)
             .spawn(|| {
                 let mut rng = ChaCha20Rng::from_seed([0xAAu8; 32]);
                 let (sk, vk) = MlDsa87::generate(&mut rng);
@@ -828,7 +828,7 @@ mod tests {
     #[test]
     fn mldsa87_signing_key_roundtrip() {
         std::thread::Builder::new()
-            .stack_size(8 * 1024 * 1024)
+            .stack_size(crate::stack_safe::OXICRYPTO_MLDSA_STACK)
             .spawn(|| {
                 let mut rng = ChaCha20Rng::from_seed([0xDDu8; 32]);
                 let (sk_orig, vk) = MlDsa87::generate(&mut rng);
@@ -872,7 +872,7 @@ mod tests {
     #[test]
     fn mldsa87_verifying_key_roundtrip() {
         std::thread::Builder::new()
-            .stack_size(8 * 1024 * 1024)
+            .stack_size(crate::stack_safe::OXICRYPTO_MLDSA_STACK)
             .spawn(|| {
                 let mut rng = ChaCha20Rng::from_seed([0x11u8; 32]);
                 let (sk, vk_orig) = MlDsa87::generate(&mut rng);
@@ -914,7 +914,7 @@ mod tests {
     #[test]
     fn mldsa87_signature_roundtrip() {
         std::thread::Builder::new()
-            .stack_size(8 * 1024 * 1024)
+            .stack_size(crate::stack_safe::OXICRYPTO_MLDSA_STACK)
             .spawn(|| {
                 let mut rng = ChaCha20Rng::from_seed([0x44u8; 32]);
                 let (sk, vk) = MlDsa87::generate(&mut rng);
@@ -991,7 +991,7 @@ mod tests {
     #[test]
     fn mldsa87_signer_verifier_trait() {
         std::thread::Builder::new()
-            .stack_size(16 * 1024 * 1024)
+            .stack_size(crate::stack_safe::OXICRYPTO_MLDSA_STACK)
             .spawn(|| {
                 let mut rng = ChaCha20Rng::from_seed([0x77u8; 32]);
                 let (sk_typed, vk_typed) = MlDsa87::generate(&mut rng);

@@ -1,7 +1,7 @@
 # oxicrypto-sig TODO
 
 ## Status
-Comprehensive signature suite (158 + 61 + 58 + 58 + 67 + 222 = ~624 SLOC across 6 files). Implements Ed25519 (RFC 8032) with `Signer`/`Verifier` traits, Ed448 (RFC 8032 Section 5.2), ECDSA P-256/P-384/P-521 (FIPS 186-5) with typed signer/verifier structs, RSA PKCS#1v15 with SHA-256/384/512 and RSA-PSS with SHA-256. All sign/verify only; no batch verification, no key generation, no BIP-340 Schnorr, no threshold signatures. Note: upstream deps `rsa 0.10.0-rc.18`, `p256/p384/p521 0.14.0-rc.9`, `ed448-goldilocks 0.14.0-pre.12` are release candidates.
+Comprehensive signature suite (~7,200 SLOC across 17 files, including tests). Implements Ed25519 (RFC 8032, plus batch verify and `ctx`/`ph` extended modes) with `Signer`/`Verifier` traits, Ed448 (RFC 8032 §5.2, plus `ctx`/`ph`), ECDSA P-256/P-384/P-521 (FIPS 186-5, RFC 6979-deterministic, DER + raw `SignatureFormat`, and a runtime-selectable `CurveId` constructor), RSA PKCS#1v1.5 and RSA-PSS (SHA-256/384/512) with key generation, PEM/PKCS#1 import-export, and RSA-OAEP encryption, Schnorr BIP-340, FROST(Ed25519, SHA-512) threshold signatures, MuSig2 (Ed25519 n-of-n multisig), and a `tls` module negotiating a `Signer`/`Verifier` pair from a TLS 1.3 `SignatureScheme`. Key generation is implemented for every algorithm family. 226 tests pass (`cargo nextest run -p oxicrypto-sig --all-features`, verified 2026-07-17). Upstream deps `rsa 0.10.0-rc.18`, `p256`/`p384`/`p521`/`k256 0.14.0-rc.15`, `ed448-goldilocks 0.14.0-pre.15` remain release candidates (re-verified 2026-07-17).
 
 ## Core Implementation
 - [x] Add Ed25519 batch verification using `ed25519_dalek::verify_batch()` for verifying multiple signatures in a single operation (~40 SLOC) (planned 2026-05-25)
@@ -167,7 +167,7 @@ Comprehensive signature suite (158 + 61 + 58 + 58 + 67 + 222 = ~624 SLOC across 
 
 ## Integration
 - [~] Track upstream stable releases: `rsa` 0.10.0 stable, `p256`/`p384`/`p521` 0.14.0 stable, `ed448-goldilocks` 0.14.0 stable — update Cargo.toml when RCs graduate
-  - **Status (2026-06-03):** Still RC — `rsa = 0.10.0-rc.18`, `p256/p384/p521 = 0.14.0-rc.9`, `ed448-goldilocks = 0.14.0-pre.12` per `cargo search`. Update Cargo.toml when stable releases land.
+  - **Status (2026-07-17):** Still RC — `rsa = 0.10.0-rc.18` (unchanged since 2026-06-03), `p256/p384/p521/k256 = 0.14.0-rc.15` (up from rc.9), `ed448-goldilocks = 0.14.0-pre.15` (up from pre.12), per the root `Cargo.toml` workspace dependency pins. Update Cargo.toml when stable releases land.
 - [x] Wire key generation to `oxicrypto-rand` OxiRng for deterministic-if-needed keygen in tests (done 2026-06-03)
   - **Result:** Added `ed25519_generate_keypair_with_oxirng`, `ecdsa_p256_generate_keypair_with_oxirng`, `ecdsa_p384_generate_keypair_with_oxirng`, `ecdsa_p521_generate_keypair_with_oxirng`, `ed448_generate_keypair_with_oxirng`, `schnorr_bip340_generate_keypair_with_oxirng` convenience wrappers in `src/lib.rs` under `#[cfg(test)]`. Tests: `oxirng_ed25519_keygen_roundtrip`, `oxirng_ecdsa_p256_keygen_roundtrip`, `oxirng_ed448_keygen_roundtrip`, `oxirng_schnorr_keygen_roundtrip` — all pass.
 - [x] Ensure `oxicrypto-pq` ML-DSA signing shares the `Signer`/`Verifier` trait surface from `oxicrypto-core` (confirmed done 2026-06-03)

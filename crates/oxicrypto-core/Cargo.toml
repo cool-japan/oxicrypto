@@ -7,12 +7,22 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Pure Rust cryptography trait surface (no_std + alloc)"
+readme = "README.md"
 keywords = ["cryptography", "no-std", "traits", "pure-rust", "oxicrypto"]
 categories = ["cryptography", "no-std"]
 
 [features]
-default = []
-std = []
+default = ["alloc"]
+## Enable the heap-allocating (`alloc`) API surface: the `Vec` / `String` /
+## `Box` re-exports, `SecretVec`, the `KeyGenerator` trait, and the
+## `*_to_vec` / `seal_*` / `open_*` trait default methods.  ON by default.
+##
+## Disable (`--no-default-features`) for a genuinely alloc-free build that links
+## only `core`: the alloc-free surface (`SecretKey<N>`, `Hash::hash` /
+## `hash_to_array::<N>`, constant-time utilities, `CryptoError`, `AlgorithmId`)
+## remains fully available.
+alloc = []
+std = ["alloc"]
 ## Add `Debug` as a supertrait on all core trait objects.
 ## Enables `Box<dyn Hash + Debug>` etc. at the cost of requiring `Debug` on
 ## every implementor.  Off by default to avoid a breaking change on existing
@@ -22,7 +32,7 @@ debug = []
 ## Uses `serde` traits with `oxicode` as the recommended serialization
 ## backend (COOLJAPAN policy: oxicode replaces bincode).
 ## No-std + alloc compatible.
-serde = ["dep:serde"]
+serde = ["dep:serde", "alloc"]
 
 [dependencies]
 subtle.workspace = true

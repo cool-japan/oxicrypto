@@ -1,7 +1,7 @@
 # oxicrypto-bench TODO
 
 ## Status
-Criterion benchmark suite (321 SLOC in benches/crypto.rs + 20 SLOC lib.rs + purity test). Compares OxiCrypto against ring and aws-lc-rs for AES-256-GCM, ChaCha20-Poly1305, SHA-256, Ed25519 sign/verify. Currently covers 5 benchmark groups with 1 KiB and 4 KiB SHA-256 inputs. Never published; ring and aws-lc-rs are dev-dependencies only.
+Criterion benchmark suite split across 10 binaries under `benches/` (`hash`, `mac`, `aead`, `kdf`, `sig`, `kex`, `rand`, `pq`, `factory_overhead`, `core`; ~2,261 SLOC) plus `src/lib.rs` (~10 SLOC of `--quick`-mode helpers, `[lib] bench = false`) and 4 test files under `tests/` (`purity`, `ct_timing`, `regression`, `coverage`; ~695 SLOC) — tokei, 2026-07-17. Compares OxiCrypto against `ring` across hash/MAC/AEAD/KDF/sig/kex/PQ algorithm families (`aws-lc-rs` removed as a dev-dependency this release — no longer a comparison baseline). Never published (`publish = false`); `ring`, `ed25519-dalek`, and `blake3` (rayon feature) are dev-dependencies only.
 
 ## Core Implementation
 - [x] Add SHA-512 benchmark group: 1 KiB and 4 KiB (oxicrypto vs ring vs aws-lc-rs) (~40 SLOC)
@@ -36,7 +36,7 @@ Criterion benchmark suite (321 SLOC in benches/crypto.rs + 20 SLOC lib.rs + puri
 - [x] Establish baseline performance ratios: OxiCrypto/ring and OxiCrypto/aws-lc-rs for each algorithm — implemented in `scripts/bench_ratios.py`; reads Criterion JSON, computes ratios with per-algorithm thresholds, outputs Markdown table
 - [x] Set regression thresholds: fail CI if OxiCrypto AES-GCM exceeds 1.5x ring, ChaCha20 exceeds 1.1x ring — implemented as `tests/regression.rs` (SHA-256, ChaCha20, AES-256-GCM, HMAC-SHA-256 vs ring; 300× debug threshold, 5× release threshold); `scripts/bench_ratios.py --fail-on-regression` enforces ratios in release mode
 - [x] Track performance over releases: store criterion JSON artifacts per version — implemented in `scripts/bench_archive.sh`; copies criterion output, generates summary/ratios.md and meta.json under `target/bench_archive/<version>/`
-- [ ] Profile OxiCrypto vs ring on both x86_64 (AES-NI) and aarch64 (NEON) targets **BLOCKED: requires cross-compilation setup and aarch64 hardware or emulator; out of scope for this crate**
+- [~] Profile OxiCrypto vs ring on both x86_64 (AES-NI) and aarch64 (NEON) targets — PARTIAL 2026-07-17. Added `scripts/bench_arch_profile.sh`: records the *native* CPU-architecture Criterion baseline for the SIMD-sensitive AEAD + hash groups, saving it under `arch-<uname -m>` (so baselines from different machines never overwrite each other) with `--archive` passing a per-arch label to `bench_archive.sh`. On the arm64 dev host this captures the aarch64 / NEON leg natively. **Deferred half (honest):** the x86_64 / AES-NI leg must be recorded by running the same script on an x86_64 host / CI runner — cross-arch numbers are NOT synthesized. No library code changes.
 
 ## Integration
 - [x] Ensure new algorithms added to other subcrates get corresponding benchmark entries — `AeadAlgo::DeoxysII128` added to `benches/aead.rs` (`bench_aead_deoxys`); exhaustive coverage tests in `tests/coverage.rs` (compile-error tripwire for each algorithm enum)

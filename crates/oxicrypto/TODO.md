@@ -1,7 +1,7 @@
 # oxicrypto (facade) TODO
 
 ## Status
-Facade crate (477 SLOC). Re-exports all subcrate types and provides algorithm selector enums (`HashAlgo`, `AeadAlgo`, `MacAlgo`, `SigAlgo`, `KexAlgo`, `KdfAlgo`) with factory functions returning boxed trait objects. Features: `pure` (default-on, all algorithms), `simd` (CPU feature detection), `pq-preview` (ML-KEM + ML-DSA). As of 0.2.0, the `aws-lc` and `pkcs11` features have been removed from the facade. Known gaps: `SigAlgo` only has Ed25519 despite 6 signature algorithms being implemented; `KexAlgo` only has X25519; `KdfAlgo` only has HKDF variants.
+Facade crate (~1,519 SLOC across lib.rs, version.rs, and algo/{aead,hash,kdf,kex,mac,pq,sig}.rs, plus 1,001 SLOC of tests in src/tests.rs — tokei, 2026-07-17). Re-exports all subcrate types and provides algorithm selector enums (`HashAlgo` 11 variants, `AeadAlgo` 11, `MacAlgo` 10, `SigAlgo` 12, `KexAlgo` 5, `KdfAlgo` 8; plus `PqKemAlgo` 5 and `PqSigAlgo` 13 under `pq-preview`) with factory functions returning boxed trait objects. Features: `pure` (default-on, all algorithms), `simd` (CPU feature detection), `pq-preview` (ML-KEM/ML-DSA/SLH-DSA/X-Wing/hybrid KEMs). As of 0.2.0, the `aws-lc` and `pkcs11` features have been removed from the facade. `cargo nextest run -p oxicrypto`: 99 passed (default features); `--all-features`: 116 passed (2026-07-17).
 
 ## Core Implementation
 - [x] Expand `SigAlgo` enum with all implemented algorithms: `Ed448`, `EcdsaP256`, `EcdsaP384`, `EcdsaP521`, `RsaPkcs1v15Sha256`, `RsaPkcs1v15Sha384`, `RsaPkcs1v15Sha512`, `RsaPssSha256` (~20 SLOC)
@@ -115,6 +115,7 @@ Facade crate (477 SLOC). Re-exports all subcrate types and provides algorithm se
 - [x] Cross-crate integration test: keygen -> sign -> verify for each signature algorithm (done 2026-05-25)
 - [x] Cross-crate integration test: X25519 -> HKDF -> AES-GCM end-to-end key agreement + encryption (done 2026-05-25)
 - [x] Cross-crate integration test: ML-KEM -> HKDF -> ChaCha20-Poly1305 post-quantum key exchange + encryption (done 2026-05-25, behind pq-preview)
+- [x] Cross-crate integration test: PQ KEM -> HKDF -> AEAD hybrid public-key encryption (`tests/pq_hybrid_encryption.rs`, behind pq-preview) — ML-KEM-768 & X-Wing encapsulate -> HKDF-SHA-256 Extract+Expand -> AES-256-GCM seal/open; asserts key agreement, plaintext round-trip, tamper -> InvalidTag, and distinct encapsulations -> distinct keys. This is the facade-level deliverable that closes the pq/kdf, pq/aead, and aead/pq coordination sub-TODOs without inverting the dependency graph (done 2026-07-17).
 - [x] Test: all factory functions return correct algorithm names (done 2026-05-25)
 - [x] Test: all enum variants have unique string representations (done 2026-05-25)
 - [x] Test: `new_rng()` returns a working CSPRNG

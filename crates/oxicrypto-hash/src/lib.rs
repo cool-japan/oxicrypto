@@ -15,28 +15,35 @@
 //! [`DigestStreamingAdapter`] wrapper which works with any `digest::Digest +
 //! Default` type.
 
-// `alloc` is required for `Vec`-returning functions such as `hash_to_vec`,
-// `blake3_xof`, and `parallel_hash*_xof`. When the `no_std` feature is
-// enabled, callers should prefer the alloc-free `hash_fixed` / `hash_to_array`
-// paths (see feature documentation in Cargo.toml).
+// `alloc` is required for the `Vec` / `String`-returning surface: `hash_to_vec`
+// (from the `Hash` trait), `blake3_xof`, `parallel_hash*_xof`, the streaming
+// `HashBuilder`, and the SHAKE/cSHAKE/TupleHash XOF helpers.  These are gated
+// behind the `alloc` feature (enabled by default).
 //
-// This crate always links `alloc` because the sub-modules (parallelhash, xof,
-// hash_builder) depend on it internally. The `no_std` feature flag serves as an
-// API-guidance signal rather than a link-time exclusion: it documents which
-// methods are suitable for embedded / alloc-free callers.
+// With `--no-default-features` the crate links only `core`: the alloc-free
+// surface — the concrete `Hash` impls, their `hash_fixed::<N>()` inherent
+// methods, and `Hash::hash` / `Hash::hash_to_array::<N>()` from
+// `oxicrypto-core` — remains fully available for embedded / no-allocator use.
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 #[cfg(feature = "std")]
 extern crate std;
 
+#[cfg(feature = "alloc")]
 mod hash_builder;
+#[cfg(feature = "alloc")]
 mod parallelhash;
+#[cfg(feature = "alloc")]
 mod xof;
+#[cfg(feature = "alloc")]
 pub use hash_builder::{DynStreamingHash, HashAlgorithm, HashBuilder, StreamingHashBuilder};
+#[cfg(feature = "alloc")]
 pub use parallelhash::{
     parallel_hash128, parallel_hash128_xof, parallel_hash256, parallel_hash256_xof,
     ParallelHash128, ParallelHash256,
 };
+#[cfg(feature = "alloc")]
 pub use xof::{
     blake2b_keyed, cshake128, cshake256, shake128, shake128_start, shake256, shake256_start,
     tuple_hash128, tuple_hash256, Blake2bKeyed, Shake128Reader, Shake256Reader,
@@ -45,10 +52,13 @@ pub use xof::{
 #[cfg(feature = "std")]
 pub use xof::{hash_file_blake3, hash_file_sha256, hash_file_sha512};
 
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use digest::Digest;
-use oxicrypto_core::{CryptoError, Hash, StreamingHash};
+// Re-export the core traits so downstream users (and integration tests) can
+// bring `Hash` / `StreamingHash` into scope directly from `oxicrypto-hash`.
+pub use oxicrypto_core::{CryptoError, Hash, StreamingHash};
 
 // ── Generic streaming adapter ────────────────────────────────────────────────
 
@@ -811,12 +821,14 @@ impl Blake3 {
 /// Requesting more than 32 bytes extends the output using BLAKE3's XOF
 /// (extendable output function) mode.
 ///
-/// # `no_std` note
+/// # Alloc note
 ///
-/// This function allocates a `Vec<u8>`. When the `no_std` feature is enabled,
-/// use [`Blake3::hash_fixed`] for a 32-byte alloc-free alternative, or write
-/// the XOF output directly into a caller-provided `&mut [u8]` using
+/// This function allocates a `Vec<u8>` and therefore requires the `alloc`
+/// feature (enabled by default).  For an alloc-free build
+/// (`--no-default-features`), use [`Blake3::hash_fixed`] for a 32-byte result,
+/// or write the XOF output directly into a caller-provided `&mut [u8]` using
 /// `blake3::Hasher::finalize_xof().fill()`.
+#[cfg(feature = "alloc")]
 pub fn blake3_xof(msg: &[u8], output_len: usize) -> Vec<u8> {
     let mut out = alloc::vec![0u8; output_len];
     let mut reader = blake3::Hasher::new().update(msg).finalize_xof();
@@ -826,7 +838,10 @@ pub fn blake3_xof(msg: &[u8], output_len: usize) -> Vec<u8> {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-#[cfg(test)]
+// The in-crate test suite uses `hash_to_vec`, `blake3_xof`, and hex `Vec`
+// helpers, so it is compiled only with the `alloc` feature (the default).
+// Alloc-free coverage lives in `tests/no_alloc.rs`.
+#[cfg(all(test, feature = "alloc"))]
 mod tests {
     use super::*;
 

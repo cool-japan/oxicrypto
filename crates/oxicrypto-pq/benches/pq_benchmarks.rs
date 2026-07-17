@@ -197,19 +197,20 @@ fn bench_mldsa65(c: &mut Criterion) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  ML-DSA-87 (8 MiB stack required — wrap in high-stack threads)
+//  ML-DSA-87 (larger stack required — wrap in high-stack threads)
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn bench_mldsa87(c: &mut Criterion) {
     let mut group = c.benchmark_group("ML-DSA-87");
-    // ML-DSA-87 needs an 8 MiB stack; criterion spawns threads with the default
-    // 2 MiB stack, which is insufficient.  Each benchmark iteration re-spawns a
-    // high-stack thread.  Thread-spawn overhead is included but unavoidable here.
+    // ML-DSA-87 keygen/sign/verify build large transient buffers on the stack.
+    // Each benchmark iteration re-spawns a worker thread sized to
+    // `OXICRYPTO_MLDSA_STACK` (2 MiB, ~2.7x the measured worst-case footprint).
+    // Thread-spawn overhead is included but unavoidable here.
 
-    group.bench_function("keygen+sign (8MiB stack)", |b| {
+    group.bench_function("keygen+sign (2MiB stack)", |b| {
         b.iter(|| {
             std::thread::Builder::new()
-                .stack_size(8 * 1024 * 1024)
+                .stack_size(oxicrypto_pq::OXICRYPTO_MLDSA_STACK)
                 .spawn(|| {
                     let mut rng = ChaCha20Rng::from_seed(BENCH_SEED);
                     let (sk, _vk) = MlDsa87::generate(&mut rng);
@@ -221,10 +222,10 @@ fn bench_mldsa87(c: &mut Criterion) {
         });
     });
 
-    group.bench_function("verify (8MiB stack)", |b| {
+    group.bench_function("verify (2MiB stack)", |b| {
         // Pre-generate sig bytes outside the loop (serialised form for Send).
         let sig_bytes = std::thread::Builder::new()
-            .stack_size(8 * 1024 * 1024)
+            .stack_size(oxicrypto_pq::OXICRYPTO_MLDSA_STACK)
             .spawn(|| {
                 let mut rng = ChaCha20Rng::from_seed(BENCH_SEED);
                 let (sk, _vk) = MlDsa87::generate(&mut rng);
@@ -234,7 +235,7 @@ fn bench_mldsa87(c: &mut Criterion) {
             .join()
             .expect("thread panicked");
         let vk_bytes = std::thread::Builder::new()
-            .stack_size(8 * 1024 * 1024)
+            .stack_size(oxicrypto_pq::OXICRYPTO_MLDSA_STACK)
             .spawn(|| {
                 let mut rng = ChaCha20Rng::from_seed(BENCH_SEED);
                 let (_sk, vk) = MlDsa87::generate(&mut rng);

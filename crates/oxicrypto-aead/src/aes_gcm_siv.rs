@@ -4,20 +4,20 @@
 //!
 //! AES-GCM-SIV (RFC 8452) is a misuse-resistant AEAD: nonce reuse does not
 //! expose the plaintext (only reveals that the same message was encrypted twice).
-//! It uses the `aes-gcm-siv 0.11` crate aligned with `aead 0.5`.
+//! It uses the `aes-gcm-siv 0.12` crate aligned with `aead 0.6`.
 //!
 //! Key: 16 bytes (128-bit) or 32 bytes (256-bit).
 //! Nonce: 12 bytes.
 //! Tag: 16 bytes.
 
-use aead::{AeadInPlace, KeyInit};
+use aead::{AeadInOut, KeyInit};
 use aes_gcm_siv::{Aes128GcmSiv, Aes256GcmSiv};
 use oxicrypto_core::{Aead, CryptoError};
 
 /// AES-GCM-SIV max plaintext: 2^36 − 32 bytes (RFC 8452 §6 / RFC 5116 §5.1).
 const AES_GCM_SIV_MAX_PT: u64 = (1u64 << 36) - 32;
 
-fn seal_siv<C: AeadInPlace + KeyInit>(
+fn seal_siv<C: AeadInOut + KeyInit>(
     key: &[u8],
     key_len: usize,
     nonce: &[u8],
@@ -42,15 +42,15 @@ fn seal_siv<C: AeadInPlace + KeyInit>(
     }
     ct_out[..pt.len()].copy_from_slice(pt);
     let cipher = C::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-    let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+    let nonce_arr = aead::Nonce::<C>::try_from(nonce).map_err(|_| CryptoError::InvalidNonce)?;
     let tag = cipher
-        .encrypt_in_place_detached(nonce_arr, aad, &mut ct_out[..pt.len()])
+        .encrypt_inout_detached(&nonce_arr, aad, (&mut ct_out[..pt.len()]).into())
         .map_err(|_| CryptoError::Internal("AES-GCM-SIV encrypt failed"))?;
     ct_out[pt.len()..required].copy_from_slice(&tag);
     Ok(required)
 }
 
-fn open_siv<C: AeadInPlace + KeyInit>(
+fn open_siv<C: AeadInOut + KeyInit>(
     key: &[u8],
     key_len: usize,
     nonce: &[u8],
@@ -75,10 +75,10 @@ fn open_siv<C: AeadInPlace + KeyInit>(
     }
     pt_out[..pt_len].copy_from_slice(&ct[..pt_len]);
     let cipher = C::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-    let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
-    let tag = aead::Tag::<C>::clone_from_slice(&ct[pt_len..]);
+    let nonce_arr = aead::Nonce::<C>::try_from(nonce).map_err(|_| CryptoError::InvalidNonce)?;
+    let tag = aead::Tag::<C>::try_from(&ct[pt_len..]).map_err(|_| CryptoError::BadInput)?;
     cipher
-        .decrypt_in_place_detached(nonce_arr, aad, &mut pt_out[..pt_len], &tag)
+        .decrypt_inout_detached(&nonce_arr, aad, (&mut pt_out[..pt_len]).into(), &tag)
         .map_err(|_| CryptoError::InvalidTag)?;
     Ok(pt_len)
 }

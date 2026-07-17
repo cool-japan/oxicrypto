@@ -3,15 +3,15 @@
 [![Crates.io](https://img.shields.io/crates/v/oxicrypto-mac.svg)](https://crates.io/crates/oxicrypto-mac)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-`oxicrypto-mac` is the MAC (message authentication code) layer of the OxiCrypto stack. It wraps the RustCrypto `hmac`, `cmac`, `poly1305`, `tiny-keccak`, and `blake3` primitives behind the `oxicrypto_core::{Mac, StreamingMac}` traits, providing HMAC (SHA-2 and SHA-3 families), Poly1305, CMAC-AES, KMAC (SP 800-185), and BLAKE3 keyed-hash authentication.
+`oxicrypto-mac` is the MAC (message authentication code) layer of the OxiCrypto stack. It wraps the RustCrypto `hmac`, `cmac`, `poly1305`, `tiny-keccak`, and `blake3` primitives behind the `oxicrypto_core::{Mac, StreamingMac}` traits, providing HMAC (SHA-2 and SHA-3 families), Poly1305, CMAC-AES, KMAC (SP 800-185), and BLAKE3 keyed-hash authentication, plus a hash-agnostic generic HMAC adapter and TLS 1.3/1.2 cipher-suite MAC negotiation (see below).
 
-The crate is Pure Rust (`#![forbid(unsafe_code)]`, `no_std + alloc`). Every `verify` path uses **constant-time** comparison via the `subtle` crate, so tag checks do not leak timing information. One-shot, streaming, and truncated variants are provided, along with `*_to_vec` convenience helpers.
+The crate is Pure Rust (`#![forbid(unsafe_code)]`) and written in a `no_std`-portable style — production code uses explicit `alloc::` paths and no direct `std::` API. **Note:** unlike `oxicrypto-core` and `oxicrypto-hash`, `src/lib.rs` does not currently declare `#![no_std]`, so today the crate links `std` unconditionally regardless of the `std` feature; `alloc` is used unconditionally too (there is no feature to opt out of it). Every `verify` path uses **constant-time** comparison via the `subtle` crate, so tag checks do not leak timing information. One-shot, streaming, and truncated variants are provided, along with `*_to_vec` convenience helpers.
 
 ## Installation
 
 ```toml
 [dependencies]
-oxicrypto-mac = "0.1.0"
+oxicrypto-mac = "0.2.1"
 ```
 
 ## Quick Start
@@ -59,7 +59,7 @@ fn main() -> Result<(), oxicrypto_core::CryptoError> {
 
 ### `Mac`-trait implementations (one-shot)
 
-All of these are zero-size unit structs implementing `oxicrypto_core::Mac` (`name`, `key_len`, `output_len`, `mac`, `verify`).
+All of these are zero-size unit structs implementing `oxicrypto_core::Mac` (`name`, `key_len`, `output_len`, `mac`, `verify`, `min_key_len`, and `mac_to_vec`).
 
 | Type | Algorithm | Key length | Tag length | Standard / notes |
 |------|-----------|-----------|-----------|------------------|
@@ -95,8 +95,20 @@ All of these are zero-size unit structs implementing `oxicrypto_core::Mac` (`nam
 | `HmacSha256Streaming` | Type alias `HmacStreamingAdapter<sha2::Sha256>` |
 | `HmacSha384Streaming` | Type alias `HmacStreamingAdapter<sha2::Sha384>` |
 | `HmacSha512Streaming` | Type alias `HmacStreamingAdapter<sha2::Sha512>` |
+| `HmacSha256::new_keyed(key)` / `HmacSha384::new_keyed(key)` / `HmacSha512::new_keyed(key)` | Pre-keyed constructors returning `HmacSha256Keyed` / `HmacSha384Keyed` / `HmacSha512Keyed`, which cache the keyed `hmac::Hmac<D>` state and expose their own `update`/`finalize` pair for repeated use with the same key |
 
 `StreamingMac` (from `oxicrypto-core`): `update(&mut self, data)`, `finalize(self, out)`, `verify(self, expected)` (constant-time).
+
+### Hash-agnostic HMAC (`hmac_streaming_hash` module)
+
+A structurally-correct RFC 2104 HMAC built directly on [`oxicrypto_core::StreamingHash`] rather than the `digest` crate, so it works with **any** `oxicrypto-hash` streaming hasher (SHA-2, SHA-3, BLAKE2, BLAKE3, …) without adding a hash-crate dependency edge. All items below are also re-exported at the crate root.
+
+| Item | Description |
+|------|-------------|
+| `StreamingHashHmac::new(key, block_size, output_len, factory)` | Construct an HMAC over any `H: StreamingHash` produced by `factory: Fn() -> H`; pre-hashes `key` with a fresh `H` if longer than `block_size`, then zero-pads to `block_size` |
+| `StreamingHashHmac::mac_oneshot(msg, out)` / `.verify(msg, expected)` | One-shot MAC / constant-time verify |
+| `StreamingHashHmac::streaming_session()` | Returns a `StreamingHashHmacSession` (requires `F: Clone`) for incremental `update`/`finalize` |
+| `hmac_with_streaming_hash(key, block_size, output_len, msg, factory)` | Free-function, one-shot convenience wrapper returning `Vec<u8>` |
 
 ### Free functions
 
@@ -111,13 +123,24 @@ All of these are zero-size unit structs implementing `oxicrypto_core::Mac` (`nam
 | `hmac_sha384_to_vec(key, msg) -> Result<Vec<u8>>` | HMAC-SHA-384 returning an owned 48-byte vector |
 | `hmac_sha512_to_vec(key, msg) -> Result<Vec<u8>>` | HMAC-SHA-512 returning an owned 64-byte vector |
 
+### TLS cipher-suite MAC negotiation (`tls` module)
+
+Maps a TLS cipher suite to the HMAC primitive its handshake uses (the HKDF and Finished-message MAC, RFC 8446 §7.1 / §4.4.4), so higher-level OxiTLS code isn't hard-coded to a specific hash function. All items below are also re-exported at the crate root.
+
+| Item | Description |
+|------|-------------|
+| `TlsCipherSuite` | `#[non_exhaustive]` enum: all 5 RFC 8446 §B.4 TLS 1.3 suites (`Aes128GcmSha256`, `Aes256GcmSha384`, `Chacha20Poly1305Sha256`, `Aes128CcmSha256`, `Aes128Ccm8Sha256`) plus generic TLS 1.2 PRF markers (`Sha256Prf`, `Sha384Prf`, `Sha512Prf`) |
+| `TlsCipherSuite::from_iana_name(name) -> Option<Self>` | Parse an IANA cipher-suite name, e.g. `"TLS_AES_256_GCM_SHA384"` |
+| `mac_name_for_suite(suite) -> &'static str` | Canonical MAC name for a suite, e.g. `"HMAC-SHA-384"` |
+| `negotiate_mac(suite) -> Result<Box<dyn Mac + Send + Sync>, CryptoError>` | Boxed `HmacSha256` / `HmacSha384` / `HmacSha512` for the suite's HKDF/Finished MAC; currently infallible (reserved for future variants) |
+
 ## Feature Flags
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `std` | off | Propagates `std` to `oxicrypto-core` |
+| `std` | off | Forwards to `oxicrypto-core/std` (enabling `From<CryptoError> for std::io::Error` there). Has no effect inside `oxicrypto-mac` itself — no code in this crate is gated on `feature = "std"`. |
 
-With default features the crate is `no_std` (it uses `alloc` internally for KMAC and the `*_to_vec` helpers).
+`alloc` is used unconditionally (KMAC, the `*_to_vec` helpers, the hash-agnostic HMAC module, and the TLS module all need it) and cannot currently be disabled. As noted above, the crate does not yet declare `#![no_std]`, so it links `std` regardless of this feature.
 
 ## Error Variants
 

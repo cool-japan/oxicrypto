@@ -1,3 +1,6 @@
+// The SHAKE XOF helpers return / stream heap buffers and live behind the
+// `alloc` feature; skip this file entirely in an alloc-free build.
+#![cfg(feature = "alloc")]
 //! Known-answer tests for SHAKE128 / SHAKE256 (FIPS 202).
 //!
 //! Vectors verified with OpenSSL 3.x:

@@ -1,7 +1,7 @@
 # oxicrypto-hash TODO
 
 ## Status
-Basic stateless hash wrappers (252 SLOC). Implements `Hash` trait for SHA-256, SHA-384, SHA-512 (FIPS 180-4), SHA3-256, SHA3-384, SHA3-512 (FIPS 202), and BLAKE3. All one-shot only; no streaming API, no XOFs, no BLAKE2.
+Full-featured hash layer (2129 SLOC across `lib.rs`, `xof.rs`, `parallelhash.rs`, `hash_builder.rs`; excludes the 1380-line `tests/` integration-test suite and the `fuzz/` targets — tokei, 2026-07-17). Implements `Hash` + `StreamingHash` for SHA-2 (SHA-256/384/512/512-256, FIPS 180-4), SHA-3 (SHA3-256/384/512, FIPS 202), BLAKE2 (BLAKE2b-256/512, BLAKE2s-256, RFC 7693), and BLAKE3 (standard/keyed/KDF/XOF modes); SHAKE128/256, cSHAKE128/256, TupleHash128/256, and a BLAKE2b keyed-hash mode (NIST SP 800-185 / RFC 7693); ParallelHash128/256 (NIST SP 800-185); a runtime `HashBuilder`/`StreamingHashBuilder`; and an alloc-free `hash_fixed::<N>()` inherent method per algorithm for `--no-default-features` (`core`-only) builds. `no_std`, with a default-on `alloc` feature. 252/252 tests passing (2026-07-17, `cargo nextest run -p oxicrypto-hash --all-features`).
 
 ## Core Implementation
 - [x] Implement `StreamingHash` adapter wrapping `digest::Digest` for incremental hashing on all existing algorithms: `Sha256Streaming`, `Sha384Streaming`, etc. (~120 SLOC) (done 2026-05-25)
@@ -101,8 +101,11 @@ Basic stateless hash wrappers (252 SLOC). Implements `Hash` trait for SHA-256, S
 - [x] Add `Hash::block_size() -> usize` method returning internal block size (64 for SHA-256, 136 for SHA3-256, etc.) (done 2026-05-26, as BLOCK_SIZE associated consts on all algorithm structs)
 - [x] Add `const` variants: `Sha256::DIGEST_LEN`, `Blake3::DIGEST_LEN` as associated constants (done 2026-05-26, DIGEST_LEN on all algorithm structs)
 - [x] Support variable-length output for BLAKE3 and SHAKE (done 2026-05-25, blake3_xof() + shake128/256 XOF readers)
-- [ ] Add `#[cfg(feature = "no_std")]` path that avoids `alloc` in `hash_to_vec` (return fixed-size array instead)
-  - **DEFERRED: requires `oxicrypto-core` to add an `alloc` feature first.** `hash_to_array::<N>()` (in `oxicrypto-core` `Hash` trait) provides an alloc-free path today. Full alloc-free (no `extern crate alloc`) requires gating `hash_to_vec`, `blake3_xof`, and `parallel_hash*_xof` behind an `alloc` feature — needs coordinated change in `oxicrypto-core` + this crate.
+- [x] Add an alloc-free path for `hash_to_vec` (return fixed-size array instead) — DONE 2026-07-17.
+  - Prerequisite completed: `oxicrypto-core` now has an `alloc` feature (default-on). Its alloc surface — the `Vec`/`String`/`Box` re-exports, `SecretVec`, `KeyGenerator`, and the `*_to_vec` / `seal_*` / `open_*` trait default methods — is gated behind `feature = "alloc"`; the alloc-free surface (`SecretKey<N>`, `Hash::hash` / `hash_to_array::<N>`, ct utils, `CryptoError`, `AlgorithmId`) stays unconditional. Verified: `cargo build -p oxicrypto-core --no-default-features` links only `core`.
+  - This crate: added a default-on `alloc` feature forwarding `oxicrypto-core/alloc` + `sha2/sha3/blake2/digest` alloc. `extern crate alloc`, `Hash::hash_to_vec`, `blake3_xof`, `parallel_hash*_xof`, the SHAKE/cSHAKE/TupleHash XOF helpers, and `HashBuilder` are all gated behind `alloc`. The alloc-free path — the concrete `hash_fixed::<N>()` inherent methods and `Hash::hash` / `hash_to_array::<N>()` — remains available with `--no-default-features`.
+  - Tests: `tests/no_alloc.rs` computes SHA-256/512 and BLAKE3 via `hash_fixed` + `hash_to_array` and checks known vectors; passes under `cargo test -p oxicrypto-hash --no-default-features` (library then links only `core`).
+  - Bounded to core + hash: other crates keep default (alloc-on) via workspace inheritance and are untouched. Note: because the workspace `oxicrypto-core` dep is inherited with its default features, a `-p oxicrypto-hash --no-default-features` build still resolves `oxicrypto-core` with `alloc` on transitively; a fully allocator-free *link* additionally requires building `oxicrypto-core` without defaults (independently verified above). Forcing that via the hash dep is a cargo workspace-inheritance limitation (`default-features=false` is ignored unless declared workspace-wide, which would cascade to all consumers) — left as the documented ecosystem-level follow-up.
 - [x] Implement `Clone` for streaming hash state to allow forking of hash computation (done 2026-05-26, DigestStreamingAdapter derives Clone; Blake3Streaming impls Clone)
 
 ## Testing

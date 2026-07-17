@@ -11,12 +11,12 @@ The crate is **Pure Rust** and `#![no_std]` (with `alloc`), declaring `#![forbid
 
 ```toml
 [dependencies]
-oxicrypto-hash = "0.1.0"
+oxicrypto-hash = "0.2.1"
 ```
 
 ```toml
 # Enable file-hashing helpers and std::io::Write integrations
-oxicrypto-hash = { version = "0.1.0", features = ["std"] }
+oxicrypto-hash = { version = "0.2.1", features = ["std"] }
 ```
 
 ## Quick Start
@@ -59,7 +59,7 @@ Each type implements `Hash` and exposes `DIGEST_LEN` and `BLOCK_SIZE` associated
 | `Blake2s256` | BLAKE2s-256 | 32 | 64 | RFC 7693 |
 | `Blake3` | BLAKE3 | 32 | 64 | BLAKE3 spec |
 
-`Hash` provides `name`, `output_len`, `hash`, plus the convenience defaults `hash_to_vec` and `hash_to_array<N>`.
+`Hash` provides `name`, `output_len`, `hash`, plus the convenience defaults `hash_to_vec` and `hash_to_array<N>`. Every type in the table above also has an inherent, allocation-free `hash_fixed(&self, msg: &[u8]) -> [u8; N]` method (e.g. `Sha256::hash_fixed(&self, msg) -> [u8; 32]`, `Blake3::hash_fixed(&self, msg) -> [u8; 32]`) that remains available with `--no-default-features`.
 
 ### Streaming hashers (`oxicrypto_core::StreamingHash`)
 
@@ -116,7 +116,8 @@ Available with the `std` feature: `sha256_hex`, `sha384_hex`, `sha512_hex`, `sha
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `std` | off | Enables hex-digest helpers (`sha256_hex`, …), file-hashing helpers (`hash_file_*`), and `std::io::Write` for streaming hashers. Forwards to `blake3/std` and `oxicrypto-core/std`. |
+| `alloc` | **on** | Heap-allocating API surface: `Hash::hash_to_vec`, `blake3_xof`, `parallel_hash*_xof`, the `HashBuilder` / `StreamingHashBuilder`, the SHAKE/cSHAKE/TupleHash XOF helpers, and the BLAKE2b keyed-hash helpers (`Blake2bKeyed`, `blake2b_keyed`). Disable with `--no-default-features` for an allocation-free build that links only `core` — use the inherent `hash_fixed::<N>()` method on each concrete hash type (e.g. `Sha256::hash_fixed`, `Blake3::hash_fixed`) plus `Hash::hash` / `hash_to_array::<N>` instead. |
+| `std` | off | Implies `alloc`. Enables hex-digest helpers (`sha256_hex`, …), file-hashing helpers (`hash_file_*`), and `std::io::Write` for streaming hashers. Forwards to `blake3/std` and `oxicrypto-core/std`. |
 
 ## Cross-references
 

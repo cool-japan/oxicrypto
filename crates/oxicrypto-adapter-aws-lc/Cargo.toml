@@ -7,6 +7,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "OxiCrypto adapter for aws-lc-rs: FIPS-validated AEAD, signatures, and hashes"
+readme = "README.md"
 keywords = ["cryptography", "aws-lc", "aead", "ed25519", "fips"]
 categories = ["cryptography"]
 

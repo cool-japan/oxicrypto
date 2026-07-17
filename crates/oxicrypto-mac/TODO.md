@@ -1,7 +1,7 @@
 # oxicrypto-mac TODO
 
 ## Status
-HMAC-SHA-256 and HMAC-SHA-512 implemented (170 SLOC). Both implement the `Mac` trait with constant-time tag verification via `subtle::ConstantTimeEq`. No streaming MAC, no CMAC, no KMAC, no Poly1305 standalone.
+Full MAC layer (1117 SLOC across `lib.rs`, `hmac_streaming_hash.rs`, `tls.rs`; excludes the 933-line `tests_inline.rs` unit-test module and the separate `tests/` KAT suite — tokei, 2026-07-17). Implements `Mac` + `StreamingMac` for HMAC-SHA-256/384/512 (RFC 2104 / FIPS 198-1 — one-shot, streaming, truncated, and `new_keyed`), HMAC-SHA3-256/512, Poly1305 (RFC 8439 one-time MAC), CMAC-AES-128/256 (NIST SP 800-38B), KMAC128/256 + KMAC-XOF (NIST SP 800-185), and BLAKE3 keyed-hash MAC; a hash-agnostic generic HMAC adapter over any `StreamingHash` (`hmac_streaming_hash` module); and TLS 1.3/1.2 cipher-suite MAC negotiation (`tls` module: `TlsCipherSuite`, `negotiate_mac`, `mac_name_for_suite`). All `verify` paths are constant-time via `subtle::ConstantTimeEq`. Uses `alloc` unconditionally. **Note:** unlike `oxicrypto-core`/`oxicrypto-hash`, `src/lib.rs` does not yet declare `#![no_std]` despite being written in a no_std-portable style — flagged 2026-07-17 during the 0.2.1 docs pass (see README caveat); adding the attribute is a follow-up source change, out of scope for this docs-only pass. 184/184 tests passing (2026-07-17, `cargo nextest run -p oxicrypto-mac --all-features`).
 
 ## Core Implementation
 - [x] `StreamingMac` adapter wrapping `hmac::Hmac` (done 2026-05-25)

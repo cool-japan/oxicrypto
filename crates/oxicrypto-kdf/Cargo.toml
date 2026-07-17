@@ -7,6 +7,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Pure Rust KDF implementations for OxiCrypto (HKDF, PBKDF2, Argon2id, scrypt)"
+readme = "README.md"
 keywords = ["cryptography", "hkdf", "pbkdf2", "argon2", "scrypt"]
 categories = ["cryptography"]
 

@@ -1,7 +1,7 @@
 # oxicrypto-core TODO
 
 ## Status
-Minimal trait surface (187 SLOC). Defines `CryptoError` enum, seven trait objects (`Hash`, `Aead`, `Mac`, `Signer`, `Verifier`, `KeyAgreement`, `Kdf`, `Rng`), and re-exports from `alloc`. No crypto implementation lives here. `no_std + alloc` compliant.
+Full trait surface (845 SLOC across `lib.rs`, `ct.rs`, `error.rs`, `secret.rs`, `algo_id.rs`, and `traits/`; excludes the 1224-line `tests.rs` suite — tokei, 2026-07-17). Defines the `CryptoError` enum (11 variants), 15 trait families (`Hash`, `StreamingHash`, `Aead`, `StreamingAead`, `Mac`, `StreamingMac`, `Kdf`, `PasswordHash`, `PasswordHashParams`, `KeyAgreement`, `Signer`, `Verifier`, `KeyGenerator`, `Kem`, `Rng`), the `AlgorithmId`/`AlgorithmCategory` registry (77 variants), `SecretKey`/`SecretVec`/`KeyPair` zeroizing wrappers, and constant-time utilities. No crypto implementation lives here. `no_std`, with a default-on `alloc` feature (`--no-default-features` links only `core`); optional `debug` and `serde` features. 66/66 tests passing (2026-07-17, `cargo nextest run -p oxicrypto-core --all-features`).
 
 ## Core Implementation
 - [x] Add `SecretKey<N>` fixed-size wrapper with `Zeroize + ZeroizeOnDrop` semantics (use `zeroize 1.x`); store key bytes in a `[u8; N]` that is zeroed when dropped (~80 SLOC)

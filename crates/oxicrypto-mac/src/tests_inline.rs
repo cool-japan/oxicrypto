@@ -563,6 +563,115 @@ fn hmac_sha384_truncated_is_prefix() {
     assert_eq!(&trunc[..], &full[..24]);
 }
 
+// ── Truncated HMAC: oversized-length regression (out-of-bounds guard) ──────────
+
+/// An oversized `out`/`tag` (longer than the digest) must return BadInput
+/// instead of panicking on `&full[..n]` / `&buf[..n]` slicing.
+#[test]
+fn hmac_sha256_truncated_oversized_rejected() {
+    let mac = HmacSha256;
+    let mut buf = [0u8; 33];
+    assert_eq!(
+        mac.mac_truncated(b"k", b"m", &mut buf),
+        Err(CryptoError::BadInput),
+        "out longer than 32-byte digest must be rejected"
+    );
+    let oversized = [0u8; 33];
+    assert_eq!(
+        mac.verify_truncated(b"k", b"m", &oversized),
+        Err(CryptoError::BadInput),
+        "tag longer than 32-byte digest must be rejected"
+    );
+}
+
+#[test]
+fn hmac_sha512_truncated_oversized_rejected() {
+    let mac = HmacSha512;
+    let mut buf = [0u8; 65];
+    assert_eq!(
+        mac.mac_truncated(b"k", b"m", &mut buf),
+        Err(CryptoError::BadInput),
+        "out longer than 64-byte digest must be rejected"
+    );
+    let oversized = [0u8; 65];
+    assert_eq!(
+        mac.verify_truncated(b"k", b"m", &oversized),
+        Err(CryptoError::BadInput),
+        "tag longer than 64-byte digest must be rejected"
+    );
+}
+
+#[test]
+fn hmac_sha384_truncated_oversized_rejected() {
+    let mac = HmacSha384;
+    let mut buf = [0u8; 49];
+    assert_eq!(
+        mac.mac_truncated(b"k", b"m", &mut buf),
+        Err(CryptoError::BadInput),
+        "out longer than 48-byte digest must be rejected"
+    );
+    let oversized = [0u8; 49];
+    assert_eq!(
+        mac.verify_truncated(b"k", b"m", &oversized),
+        Err(CryptoError::BadInput),
+        "tag longer than 48-byte digest must be rejected"
+    );
+}
+
+/// The full-digest length (upper bound of the inclusive range) must still work.
+#[test]
+fn hmac_truncated_full_length_ok() {
+    let key = b"k";
+    let msg = b"m";
+
+    let mac256 = HmacSha256;
+    let mut t256 = [0u8; 32];
+    mac256.mac_truncated(key, msg, &mut t256).unwrap();
+    mac256
+        .verify_truncated(key, msg, &t256)
+        .expect("full 32-byte truncation must verify");
+
+    let mac384 = HmacSha384;
+    let mut t384 = [0u8; 48];
+    mac384.mac_truncated(key, msg, &mut t384).unwrap();
+    mac384
+        .verify_truncated(key, msg, &t384)
+        .expect("full 48-byte truncation must verify");
+
+    let mac512 = HmacSha512;
+    let mut t512 = [0u8; 64];
+    mac512.mac_truncated(key, msg, &mut t512).unwrap();
+    mac512
+        .verify_truncated(key, msg, &t512)
+        .expect("full 64-byte truncation must verify");
+}
+
+/// The below-floor (< 16) case for 384/512 (256 already covered above).
+#[test]
+fn hmac_sha384_512_truncated_too_short_rejected() {
+    let mac384 = HmacSha384;
+    let mut buf384 = [0u8; 15];
+    assert_eq!(
+        mac384.mac_truncated(b"k", b"m", &mut buf384),
+        Err(CryptoError::BadInput)
+    );
+    assert_eq!(
+        mac384.verify_truncated(b"k", b"m", &buf384),
+        Err(CryptoError::BadInput)
+    );
+
+    let mac512 = HmacSha512;
+    let mut buf512 = [0u8; 15];
+    assert_eq!(
+        mac512.mac_truncated(b"k", b"m", &mut buf512),
+        Err(CryptoError::BadInput)
+    );
+    assert_eq!(
+        mac512.verify_truncated(b"k", b"m", &buf512),
+        Err(CryptoError::BadInput)
+    );
+}
+
 // ── KMAC-XOF free functions ───────────────────────────────────────────────────
 
 /// kmac128_xof and kmac256_xof must match the trait-based Kmac128/Kmac256

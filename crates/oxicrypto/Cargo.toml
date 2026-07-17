@@ -7,6 +7,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Pure Rust cryptography facade for the OxiCrypto stack (hashes, AEADs, MACs, signatures, KEX, KDFs, CSPRNG)"
+readme = "README.md"
 keywords = ["cryptography", "pure-rust", "aead", "ed25519", "hkdf"]
 categories = ["cryptography"]
 
@@ -61,7 +62,7 @@ x25519-dalek.workspace = true
 rand_chacha.workspace = true
 rand_core.workspace = true
 getrandom.workspace = true
-oxicrypto-sig.workspace = true
+oxicrypto-sig = { path = "../oxicrypto-sig" }
 p256.workspace = true
 p384.workspace = true
 p521.workspace = true

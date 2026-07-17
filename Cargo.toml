@@ -18,7 +18,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.89"
 authors = ["COOLJAPAN OU (Team Kitasan)"]
@@ -28,19 +28,19 @@ description = "OxiCrypto is the COOLJAPAN-blessed Pure Rust cryptographic primit
 
 [workspace.dependencies]
 # Internal crates
-oxicrypto                  = { path = "crates/oxicrypto",                  version = "0.2.0" }
-oxicrypto-core             = { path = "crates/oxicrypto-core",             version = "0.2.0" }
-oxicrypto-hash             = { path = "crates/oxicrypto-hash",             version = "0.2.0" }
-oxicrypto-aead             = { path = "crates/oxicrypto-aead",             version = "0.2.0" }
-oxicrypto-cipher           = { path = "crates/oxicrypto-cipher",           version = "0.2.0" }
-oxicrypto-mac              = { path = "crates/oxicrypto-mac",              version = "0.2.0" }
-oxicrypto-sig              = { path = "crates/oxicrypto-sig",              version = "0.2.0" }
-oxicrypto-kex              = { path = "crates/oxicrypto-kex",              version = "0.2.0" }
-oxicrypto-kdf              = { path = "crates/oxicrypto-kdf",              version = "0.2.0" }
-oxicrypto-rand             = { path = "crates/oxicrypto-rand",             version = "0.2.0" }
-oxicrypto-pq               = { path = "crates/oxicrypto-pq",               version = "0.2.0" }
-oxicrypto-adapter-aws-lc   = { path = "crates/oxicrypto-adapter-aws-lc",   version = "0.2.0" }
-oxicrypto-adapter-pkcs11   = { path = "crates/oxicrypto-adapter-pkcs11",   version = "0.2.0" }
+oxicrypto                  = { path = "crates/oxicrypto",                  version = "0.2.1" }
+oxicrypto-core             = { path = "crates/oxicrypto-core",             version = "0.2.1" }
+oxicrypto-hash             = { path = "crates/oxicrypto-hash",             version = "0.2.1" }
+oxicrypto-aead             = { path = "crates/oxicrypto-aead",             version = "0.2.1" }
+oxicrypto-cipher           = { path = "crates/oxicrypto-cipher",           version = "0.2.1" }
+oxicrypto-mac              = { path = "crates/oxicrypto-mac",              version = "0.2.1" }
+oxicrypto-sig              = { path = "crates/oxicrypto-sig",              version = "0.2.1" }
+oxicrypto-kex              = { path = "crates/oxicrypto-kex",              version = "0.2.1" }
+oxicrypto-kdf              = { path = "crates/oxicrypto-kdf",              version = "0.2.1" }
+oxicrypto-rand             = { path = "crates/oxicrypto-rand",             version = "0.2.1" }
+oxicrypto-pq               = { path = "crates/oxicrypto-pq",               version = "0.2.1" }
+oxicrypto-adapter-aws-lc   = { path = "crates/oxicrypto-adapter-aws-lc",   version = "0.2.1" }
+oxicrypto-adapter-pkcs11   = { path = "crates/oxicrypto-adapter-pkcs11",   version = "0.2.1" }
 
 # Crypto primitives — new-generation RustCrypto (digest 0.11 chain)
 sha2           = { version = "0.11.0",  default-features = false }
@@ -52,14 +52,14 @@ hkdf           = { version = "0.13.0",  default-features = false }
 digest         = { version = "0.11.3",  default-features = false }
 
 # Crypto primitives — old-generation RustCrypto (aead 0.5 chain)
-aes-gcm            = { version = "0.10.3", default-features = false, features = ["aes"] }
-chacha20poly1305   = { version = "0.10.1", default-features = false }
-aead               = { version = "0.5.2",  default-features = false }
+aes-gcm            = { version = "0.11.0", default-features = false, features = ["aes"] }
+chacha20poly1305   = { version = "0.11.0", default-features = false }
+aead               = { version = "0.6.1",  default-features = false }
 
 # Raw block / stream primitives for QUIC header protection (aligned with the
 # aead 0.5 chain: aes-gcm 0.10 pulls aes 0.8, chacha20poly1305 0.10 pulls chacha20 0.9)
 aes                = { version = "0.9.1",  default-features = false }
-chacha20           = { version = "0.10.0",  default-features = false }
+chacha20           = { version = "0.10.1",  default-features = false }
 
 # Key agreement / signatures (dalek ecosystem)
 ed25519-dalek  = { version = "2.2.0",  default-features = false, features = ["rand_core"] }
@@ -82,12 +82,12 @@ oxicode        = { version = "0.2.4",  default-features = false, features = ["al
 
 # M2 additions — signature algorithms (digest 0.11 / new-gen chain)
 rsa            = { version = "0.10.0-rc.18",  default-features = false, features = ["encoding"] }          # pre-release: no stable 0.10 yet
-p256           = { version = "0.14.0-rc.12", default-features = false, features = ["ecdsa", "alloc"] }   # pre-release: no stable 0.14 yet
-p384           = { version = "0.14.0-rc.12", default-features = false, features = ["ecdsa", "alloc"] }   # pre-release: no stable 0.14 yet
-p521           = { version = "0.14.0-rc.12", default-features = false, features = ["ecdsa", "alloc"] }   # pre-release: no stable 0.14 yet
-k256           = { version = "0.14.0-rc.12", default-features = false, features = ["schnorr", "alloc"] } # pre-release: no stable 0.14 yet
-ed448-goldilocks = { version = "0.14.0-pre.13", default-features = false, features = ["signing"] }       # pre-release: no stable 0.14 yet
-x448             = { version = "0.14.0-pre.10", default-features = false }                               # pre-release: no stable 0.14 yet
+p256           = { version = "0.14.0-rc.15", default-features = false, features = ["ecdsa", "alloc"] }   # pre-release: no stable 0.14 yet
+p384           = { version = "0.14.0-rc.15", default-features = false, features = ["ecdsa", "alloc"] }   # pre-release: no stable 0.14 yet
+p521           = { version = "0.14.0-rc.15", default-features = false, features = ["ecdsa", "alloc"] }   # pre-release: no stable 0.14 yet
+k256           = { version = "0.14.0-rc.15", default-features = false, features = ["schnorr", "alloc"] } # pre-release: no stable 0.14 yet
+ed448-goldilocks = { version = "0.14.0-pre.15", default-features = false, features = ["signing"] }       # pre-release: no stable 0.14 yet
+x448             = { version = "0.14.0-pre.12", default-features = false }                               # pre-release: no stable 0.14 yet
 
 # M2 additions — password hashing KDFs (digest 0.11 / new-gen chain)
 pbkdf2         = { version = "0.13.0",       default-features = false, features = ["sha2", "hmac"] }
@@ -95,8 +95,8 @@ argon2         = { version = "0.6.0-rc.8",   default-features = false, features 
 scrypt         = { version = "0.12.0",       default-features = false, features = ["password-hash"] }
 password-hash  = { version = "0.6.1",        default-features = false, features = ["alloc", "phc"] }
 
-# M2 additions — AEAD extensions (aead 0.5 / old-gen chain — aligned with M1)
-aes-gcm-siv    = { version = "0.11.1",       default-features = false, features = ["aes"] }
+# M2 additions — AEAD extensions (aead 0.6 chain — aligned with M1)
+aes-gcm-siv    = { version = "0.12.0-rc.3",  default-features = false, features = ["aes"] }                  # pre-release: no stable 0.12 yet (targets aead 0.6)
 
 # MAC/AEAD extensions
 # poly1305 0.8 is pinned by chacha20poly1305 0.10 (which requires poly1305 ^0.8)
@@ -104,7 +104,7 @@ poly1305       = { version = "0.9.0",        default-features = false }
 # cmac 0.8 requires cipher 0.5; use aes-cipher05 (aes 0.9) as the cipher backend
 cmac           = { version = "0.8.0",        default-features = false }
 ccm            = { version = "0.6.0-rc.3",   default-features = false }                                      # pre-release: no stable 0.6 yet
-ocb3           = { version = "0.1.0",        default-features = false }
+ocb3           = { version = "0.2.0-rc.3",   default-features = false }                                      # pre-release: no stable 0.2 yet (targets aead 0.6)
 # aes-cipher05: aes 0.9.x implements cipher 0.5 traits (required by cmac 0.8).
 # Coexists with aes 0.8 (cipher 0.4, used by aes-gcm / chacha20poly1305 chain).
 aes-cipher05   = { package = "aes", version = "0.9.1",  default-features = false }
@@ -138,7 +138,7 @@ hex            = { version = "0.4.3",  default-features = false, features = ["al
 cpufeatures    = { version = "0.3.0" }
 criterion      = { version = "0.8.2", features = ["html_reports"] }
 ring           = { version = "0.17.14" }
-aws-lc-rs      = { version = "1.17.0" }
+aws-lc-rs      = { version = "1.17.1" }
 cryptoki       = { version = "0.12.0" }
 rustls         = { version = "0.23", default-features = false }
 rustls-pki-types = { version = "1" }

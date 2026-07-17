@@ -7,6 +7,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Pure Rust digital signature implementations for OxiCrypto (Ed25519, ECDSA P-256/384/521, Ed448, RSA PKCS#1v15 / PSS)"
+readme = "README.md"
 keywords = ["cryptography", "ed25519", "ecdsa", "rsa", "pure-rust"]
 categories = ["cryptography"]
 
@@ -26,12 +27,11 @@ p521 = { workspace = true, features = ["digest"] }
 k256.workspace = true
 ed448-goldilocks.workspace = true
 sha2 = { workspace = true, features = ["alloc", "oid"] }
-sha3.workspace = true
 digest = { workspace = true, features = ["alloc", "oid"] }
 rand_core.workspace = true
 rand_chacha.workspace = true
 getrandom.workspace = true
 
 [dev-dependencies]
-oxicrypto-rand.workspace = true
-oxicrypto-hash.workspace = true
+oxicrypto-rand = { path = "../oxicrypto-rand" }
+oxicrypto-hash = { path = "../oxicrypto-hash" }

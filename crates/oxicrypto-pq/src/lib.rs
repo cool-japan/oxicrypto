@@ -25,6 +25,7 @@ pub mod hybrid;
 pub mod mldsa;
 pub mod mlkem;
 pub mod slh_dsa;
+pub mod stack_safe;
 
 pub use hybrid::{
     HybridKem1024P384, HybridKem1024P384Ciphertext, HybridKem1024P384DecapKey,
@@ -124,4 +125,8 @@ pub use slh_dsa::{
     SLH_DSA_SHAKE_256S_SIG_LEN,
     SLH_DSA_SHAKE_256S_SK_LEN,
     SLH_DSA_SHAKE_256S_VK_LEN,
+};
+pub use stack_safe::{
+    mldsa87_generate_stack_safe, mldsa87_sign_stack_safe, mldsa87_verify_stack_safe,
+    run_on_large_stack, OXICRYPTO_MLDSA_STACK,
 };

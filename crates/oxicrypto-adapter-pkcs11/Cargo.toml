@@ -7,6 +7,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "OxiCrypto adapter for PKCS#11 HSMs via cryptoki"
+readme = "README.md"
 keywords = ["cryptography", "pkcs11", "hsm", "fips", "hardware"]
 categories = ["cryptography"]
 
@@ -16,7 +17,7 @@ pkcs11 = ["dep:cryptoki"]
 # Enable criterion benchmarks (requires pkcs11 feature to be active).
 bench = ["pkcs11", "dep:criterion"]
 # Enable rustls SigningKey implementation backed by PKCS#11 session.
-tls = ["pkcs11", "dep:rustls", "dep:rustls-pki-types"]
+tls = ["pkcs11", "dep:rustls"]
 
 [[bench]]
 name = "pkcs11_bench"
@@ -28,7 +29,6 @@ oxicrypto-core    = { workspace = true }
 cryptoki          = { workspace = true, optional = true }
 criterion         = { workspace = true, optional = true }
 rustls            = { workspace = true, features = ["std"], optional = true }
-rustls-pki-types  = { workspace = true, optional = true }
 
 [dev-dependencies]
 # p256 for Pure-Rust ECDSA software baseline in benchmarks

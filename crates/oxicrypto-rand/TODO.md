@@ -1,7 +1,7 @@
 # oxicrypto-rand TODO
 
 ## Status
-Minimal CSPRNG (77 SLOC). Provides `OxiRng` — a ChaCha20-based CSPRNG seeded from the OS via `getrandom`. Implements `Rng` trait from `oxicrypto-core`. No fork safety, no thread-local RNG, no random integer generation, no distributions.
+`OxiRng` (ChaCha20), `OxiRng8` (ChaCha8), and `OxiRng12` (ChaCha12) CSPRNGs implemented, all seeded from the OS via `getrandom` and Unix fork-safe (PID-tracked auto-reseed on `fork()`). `ReseedingRng` wraps `OxiRng` and auto-reseeds every N bytes (default 1 MiB, per NIST SP 800-90A §9.2). All four types implement `oxicrypto_core::Rng` and `rand_core::{TryRng, TryCryptoRng}`. Thread-local RNG (`with_thread_rng`, `std` feature), `std::io::Read` for `OxiRng`/`ReseedingRng` (`std` feature), and a full set of convenience free functions are implemented: random integers (`u32`/`u64`/`u128`), unbiased ranges via rejection sampling, weighted choice, Fisher-Yates shuffle, AEAD-nonce generation, and an entropy health check. Statistical test suite (chi-squared byte distribution, NIST SP 800-22 runs test, serial correlation) plus fork/reseed/fuzz tests all in place. 79 tests passing, zero clippy warnings, zero `unwrap()` in source or tests (verified 2026-07-17).
 
 ## Core Implementation
 - [x] Add fork-safe RNG: detect `fork()` via PID tracking and automatically reseed after fork to prevent parent/child sharing CSPRNG state (~60 SLOC) (planned 2026-05-25)

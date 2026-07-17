@@ -33,7 +33,7 @@
 //! This "look-ahead by one chunk" is necessary so `encrypt_finalize` can
 //! correctly tag the last chunk with flag=0x01.
 
-use aead::{AeadInPlace, KeyInit};
+use aead::{AeadInOut, KeyInit};
 use aes_gcm::Aes256Gcm as AesGcm256;
 use chacha20poly1305::XChaCha20Poly1305;
 use oxicrypto_core::{CryptoError, StreamingAead};
@@ -81,17 +81,18 @@ fn stream_seal_chunk<C, const NONCE_FULL: usize>(
     ct_out: &mut [u8],
 ) -> Result<usize, CryptoError>
 where
-    C: AeadInPlace,
+    C: AeadInOut,
 {
-    let tag_len = <<C as aead::AeadCore>::TagSize as aead::generic_array::typenum::Unsigned>::USIZE;
+    let tag_len = <<C as aead::AeadCore>::TagSize as aead::array::typenum::Unsigned>::USIZE;
     let required = pt.len().checked_add(tag_len).ok_or(CryptoError::BadInput)?;
     if ct_out.len() < required {
         return Err(CryptoError::BufferTooSmall);
     }
     ct_out[..pt.len()].copy_from_slice(pt);
-    let nonce_ga = aead::generic_array::GenericArray::from_slice(nonce.as_ref());
+    let nonce_ga =
+        aead::Nonce::<C>::try_from(nonce.as_ref()).map_err(|_| CryptoError::InvalidNonce)?;
     let tag = cipher
-        .encrypt_in_place_detached(nonce_ga, aad, &mut ct_out[..pt.len()])
+        .encrypt_inout_detached(&nonce_ga, aad, (&mut ct_out[..pt.len()]).into())
         .map_err(|_| CryptoError::Internal("STREAM encrypt chunk failed"))?;
     ct_out[pt.len()..required].copy_from_slice(&tag);
     Ok(required)
@@ -106,9 +107,9 @@ fn stream_open_chunk<C, const NONCE_FULL: usize>(
     pt_out: &mut [u8],
 ) -> Result<usize, CryptoError>
 where
-    C: AeadInPlace,
+    C: AeadInOut,
 {
-    let tag_len = <<C as aead::AeadCore>::TagSize as aead::generic_array::typenum::Unsigned>::USIZE;
+    let tag_len = <<C as aead::AeadCore>::TagSize as aead::array::typenum::Unsigned>::USIZE;
     if ct_and_tag.len() < tag_len {
         return Err(CryptoError::BadInput);
     }
@@ -117,11 +118,12 @@ where
         return Err(CryptoError::BufferTooSmall);
     }
     pt_out[..pt_len].copy_from_slice(&ct_and_tag[..pt_len]);
-    let nonce_ga = aead::generic_array::GenericArray::from_slice(nonce.as_ref());
+    let nonce_ga =
+        aead::Nonce::<C>::try_from(nonce.as_ref()).map_err(|_| CryptoError::InvalidNonce)?;
     let tag_bytes = &ct_and_tag[pt_len..];
-    let tag = aead::Tag::<C>::clone_from_slice(tag_bytes);
+    let tag = aead::Tag::<C>::try_from(tag_bytes).map_err(|_| CryptoError::BadInput)?;
     cipher
-        .decrypt_in_place_detached(nonce_ga, aad, &mut pt_out[..pt_len], &tag)
+        .decrypt_inout_detached(&nonce_ga, aad, (&mut pt_out[..pt_len]).into(), &tag)
         .map_err(|_| CryptoError::InvalidTag)?;
     Ok(pt_len)
 }
@@ -560,12 +562,13 @@ mod tests {
         let nonce_counter = (ct_chunks.len() as u32).wrapping_sub(1);
         let nonce: [u8; 12] = build_nonce(&NONCE_PREFIX_7, nonce_counter, true);
         let cipher = aes_gcm::Aes256Gcm::new_from_slice(&KEY_256).expect("cipher");
-        let nonce_ga = aead::generic_array::GenericArray::from_slice(nonce.as_ref());
+        let nonce_ga =
+            aead::Nonce::<aes_gcm::Aes256Gcm>::try_from(nonce.as_ref()).expect("nonce length");
         let mut last_pt = last_ct[..pt_len].to_vec();
         let tag_bytes = &last_ct[pt_len..];
-        let tag_ga = aead::Tag::<aes_gcm::Aes256Gcm>::clone_from_slice(tag_bytes);
+        let tag_ga = aead::Tag::<aes_gcm::Aes256Gcm>::try_from(tag_bytes).expect("tag length");
         cipher
-            .decrypt_in_place_detached(nonce_ga, AAD, &mut last_pt, &tag_ga)
+            .decrypt_inout_detached(&nonce_ga, AAD, (&mut last_pt[..]).into(), &tag_ga)
             .expect("last chunk decrypt");
         plaintext.extend_from_slice(&last_pt);
         plaintext

@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/oxicrypto-kdf.svg)](https://crates.io/crates/oxicrypto-kdf)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-`oxicrypto-kdf` is the key-derivation and password-hashing layer of the OxiCrypto stack. It implements the [`oxicrypto_core::Kdf`](https://crates.io/crates/oxicrypto-core) and `PasswordHash` traits over the extract-and-expand HKDF (SHA-256/384/512), the iteration-hard PBKDF2 (SHA-256/512), and the memory-hard Argon2id, scrypt, and Balloon functions. It also provides the protocol building blocks `HKDF-Expand-Label` (TLS 1.3 / QUIC) and KBKDF counter mode (NIST SP 800-108), plus a runtime-selectable `KeyStretcher` abstraction and a constant-time `verify_password` helper.
+`oxicrypto-kdf` is the key-derivation and password-hashing layer of the OxiCrypto stack. It implements the [`oxicrypto_core::Kdf`](https://crates.io/crates/oxicrypto-core) and `PasswordHash` traits over the extract-and-expand HKDF (SHA-256/384/512), the iteration-hard PBKDF2 (SHA-256/512), the memory-hard Argon2id/Argon2d/Argon2i, scrypt, and Balloon functions, and a from-scratch OpenBSD-compatible bcrypt (`$2b$`). It also provides the protocol building blocks `HKDF-Expand-Label` (TLS 1.3 / QUIC) and KBKDF counter mode (NIST SP 800-108), plus a runtime-selectable `KeyStretcher` abstraction and a constant-time `verify_password` helper.
 
 The crate is **Pure Rust** with `#![forbid(unsafe_code)]`, built on the RustCrypto `hkdf`, `pbkdf2`, `argon2`, `scrypt`, `hmac`, `sha2`, `subtle`, and `password-hash` crates. There is no `ring`, no `aws-lc`, and no C/C++/Fortran in the default build. Password verification uses `subtle::ConstantTimeEq` so the comparison does not leak the position of the first differing byte, and derived key material from the Balloon and KBKDF helpers is wrapped in [`oxicrypto_core::SecretVec`] so it is zeroized on drop.
 
@@ -11,12 +11,12 @@ The crate is **Pure Rust** with `#![forbid(unsafe_code)]`, built on the RustCryp
 
 ```toml
 [dependencies]
-oxicrypto-kdf = "0.1.0"
+oxicrypto-kdf = "0.2.1"
 ```
 
 ```toml
 # Inherit std from sha2 / oxicrypto-core
-oxicrypto-kdf = { version = "0.1.0", features = ["std"] }
+oxicrypto-kdf = { version = "0.2.1", features = ["std"] }
 ```
 
 ## Quick Start
@@ -118,6 +118,19 @@ Pure-Rust single-buffer Balloon (Algorithm 1, Boneh-Corrigan-Gibbs-Schechter) ov
 | `BalloonVariant` | `Sha256` / `Sha512` |
 | `BALLOON_DELTA = 3` | Pseudo-random dependencies per block |
 
+### bcrypt (`bcrypt_kdf` module)
+
+OpenBSD-compatible `$2b$`-format bcrypt, implemented from scratch in pure Rust (own Blowfish block cipher + Eksblowfish key schedule) — there is no `blowfish`/`bcrypt` crate dependency.
+
+| Item | Description |
+|------|-------------|
+| `bcrypt_hash(password, cost, salt: &[u8; 16]) -> Result<String, CryptoError>` | One-shot hash producing a full `$2b$cc$<22-char-salt><31-char-hash>` string |
+| `bcrypt_verify(password, hash_str: &str) -> Result<bool, CryptoError>` | Parse a `$2b$` string and verify `password` against it |
+| `BcryptHasher` | `PasswordHash` implementation; `new(params)`, `with_cost(cost)` (checked), `params()`. Note: `PasswordHash::hash_password` requires an exactly-16-byte salt and writes the raw 23-byte hash (not the `$2b$` string) — use `bcrypt_hash` for the full encoded string. |
+| `BcryptParams` | Cost factor `cost` in `[4, 31]` (`2^cost` Eksblowfish iterations); `new(cost)` (checked), `validate()`; presets `interactive()` (10), `moderate()` (12), `sensitive()` (14) |
+
+Passwords are truncated at 72 bytes (standard `$2b$` semantics). Verified against Blowfish reference vectors (cipher level) and Go `x/crypto/bcrypt` known-answer vectors (bcrypt level).
+
 ### Runtime key stretching (`stretcher` module)
 
 | Item | Description |
@@ -131,6 +144,7 @@ Pure-Rust single-buffer Balloon (Algorithm 1, Boneh-Corrigan-Gibbs-Schechter) ov
 
 | Function | Description |
 |----------|-------------|
+| `generate_salt(rng: &mut oxicrypto_rand::OxiRng, len: usize) -> Result<Vec<u8>, CryptoError>` | Arbitrary-length CSPRNG salt using a caller-supplied `OxiRng` |
 | `generate_salt_16() -> Result<[u8; 16], CryptoError>` | 16-byte CSPRNG salt (PBKDF2/Argon2id minimum) |
 | `generate_salt_32() -> Result<[u8; 32], CryptoError>` | 32-byte CSPRNG salt (Argon2id/scrypt) |
 | `verify_password(hasher, password, salt, expected)` | Re-hash and compare in constant time; `Err(InvalidTag)` on mismatch, `Err(BadInput)` if `expected` is empty |

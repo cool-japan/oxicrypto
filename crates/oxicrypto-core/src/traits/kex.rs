@@ -1,3 +1,4 @@
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use crate::CryptoError;
@@ -33,6 +34,9 @@ pub trait KeyAgreement: Send + Sync + crate::traits::MaybeDebug {
     /// Convenience: perform ECDH and return the shared secret as a [`Vec<u8>`].
     ///
     /// The output length equals [`shared_secret_len`](KeyAgreement::shared_secret_len).
+    ///
+    /// Requires the `alloc` feature (enabled by default).
+    #[cfg(feature = "alloc")]
     #[must_use = "result must be checked"]
     fn agree_to_vec(&self, my_secret: &[u8], their_public: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let mut out = alloc::vec![0u8; self.shared_secret_len()];

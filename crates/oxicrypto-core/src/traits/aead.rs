@@ -1,3 +1,4 @@
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use crate::CryptoError;
@@ -63,6 +64,10 @@ pub trait Aead: Send + Sync + crate::traits::MaybeDebug {
     ) -> Result<usize, CryptoError>;
 
     /// Convenience: encrypt and return `ciphertext || tag` as a [`Vec<u8>`].
+    ///
+    /// Requires the `alloc` feature (enabled by default).  For an alloc-free
+    /// path, seal into a caller-provided buffer with [`seal`](Aead::seal).
+    #[cfg(feature = "alloc")]
     #[must_use = "result must be checked"]
     fn seal_to_vec(
         &self,
@@ -80,6 +85,9 @@ pub trait Aead: Send + Sync + crate::traits::MaybeDebug {
     ///
     /// Returns [`CryptoError::BufferTooSmall`] if `ciphertext` is shorter than
     /// `self.tag_len()`.
+    ///
+    /// Requires the `alloc` feature (enabled by default).
+    #[cfg(feature = "alloc")]
     #[must_use = "result must be checked"]
     fn open_to_vec(
         &self,
@@ -103,6 +111,9 @@ pub trait Aead: Send + Sync + crate::traits::MaybeDebug {
     /// The default implementation seals into a combined buffer and then splits
     /// off the tag.  Implementations that have a native detached mode may
     /// override this to avoid the intermediate allocation.
+    ///
+    /// Requires the `alloc` feature (enabled by default).
+    #[cfg(feature = "alloc")]
     #[must_use = "result must be checked"]
     fn seal_detached(
         &self,
@@ -132,6 +143,9 @@ pub trait Aead: Send + Sync + crate::traits::MaybeDebug {
     ///
     /// The default implementation reassembles `ct ‖ tag` then calls [`Self::open`].
     /// Implementations with a native detached mode may override this.
+    ///
+    /// Requires the `alloc` feature (enabled by default).
+    #[cfg(feature = "alloc")]
     #[must_use = "result must be checked"]
     fn open_detached(
         &self,
@@ -176,6 +190,9 @@ pub trait Aead: Send + Sync + crate::traits::MaybeDebug {
     ///
     /// Returns [`CryptoError::BadInput`] if the resulting length would overflow
     /// `usize`, or any error propagated from [`Self::seal`].
+    ///
+    /// Requires the `alloc` feature (enabled by default).
+    #[cfg(feature = "alloc")]
     #[must_use = "result must be checked"]
     fn seal_in_place(
         &self,

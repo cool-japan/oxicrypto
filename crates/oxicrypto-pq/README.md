@@ -5,16 +5,16 @@
 
 `oxicrypto-pq` is the post-quantum layer of the OxiCrypto stack. It implements the NIST-standardized PQC primitives — **ML-KEM** (FIPS 203, key encapsulation), **ML-DSA** (FIPS 204, lattice signatures), and **SLH-DSA** (FIPS 205, hash-based signatures) — plus two **hybrid** KEMs that combine ML-KEM with classical ECDH for defence-in-depth during the migration period.
 
-The crate is Pure Rust (`#![forbid(unsafe_code)]`), building on the RustCrypto `ml-kem`, `ml-dsa`, and `slh-dsa` crates, with `sha3` for SHAKE/SHA-3, `x25519-dalek` for the X-Wing hybrid, and `zeroize` for secret hygiene. ML-KEM and ML-DSA expose both random (RNG-driven) and deterministic (KAT) key generation; the deterministic helpers are gated behind the `hazmat-test-vectors` feature.
+The crate is Pure Rust (`#![forbid(unsafe_code)]`), building on the RustCrypto `ml-kem`, `ml-dsa`, and `slh-dsa` crates, with `sha3` for the X-Wing combiner's SHAKE/SHA-3, [`oxicrypto-kex`](../oxicrypto-kex) for the X25519 / ECDH-P384 classical halves of the two hybrid KEMs, and `zeroize` for secret hygiene. ML-KEM and ML-DSA expose both random (RNG-driven) and deterministic (KAT) key generation; the deterministic helpers are gated behind the `hazmat-test-vectors` feature.
 
 ## Installation
 
 ```toml
 [dependencies]
-oxicrypto-pq = "0.1.0"
+oxicrypto-pq = "0.2.1"
 
 # Enable deterministic keygen/encap helpers for known-answer tests:
-oxicrypto-pq = { version = "0.1.0", features = ["hazmat-test-vectors"] }
+oxicrypto-pq = { version = "0.2.1", features = ["hazmat-test-vectors"] }
 ```
 
 ## Quick Start
@@ -83,7 +83,7 @@ Each parameter set is a unit struct with a `generate(rng) -> (DecapKey, EncapKey
 | `MlKem768` | 3 | 1184 B | 2400 B | 1088 B | 32 B |
 | `MlKem1024` | 5 | 1568 B | 3168 B | 1568 B | 32 B |
 
-Key types: `EncapKey512/768/1024`, `DecapKey512/768/1024`, `Ciphertext512/768/1024`, and the 32-byte `SharedSecret` (`as_bytes`). `EncapKey::encapsulate(rng) -> (Ciphertext, SharedSecret)`; `DecapKey::decapsulate(ct) -> SharedSecret`. Size constants are available as associated consts (e.g. `MlKem768::ENCAP_KEY_LEN`). Each parameter set also exposes the byte-length consts `ENCAP_KEY_LEN`, `DECAP_KEY_LEN`, `CIPHERTEXT_LEN`, `SHARED_SECRET_LEN`.
+Key types: `EncapKey512/768/1024`, `DecapKey512/768/1024`, `Ciphertext512/768/1024`, and the 32-byte `SharedSecret` (`as_bytes`). `EncapKey::encapsulate(rng) -> Result<(Ciphertext, SharedSecret), CryptoError>`; `DecapKey::decapsulate(ct) -> Result<SharedSecret, CryptoError>`. Size constants are available as associated consts (e.g. `MlKem768::ENCAP_KEY_LEN`). Each parameter set also exposes the byte-length consts `ENCAP_KEY_LEN`, `DECAP_KEY_LEN`, `CIPHERTEXT_LEN`, `SHARED_SECRET_LEN`.
 
 > `SharedKeyPq` is re-exported but **deprecated** in favour of `SharedSecret`.
 
@@ -98,6 +98,22 @@ Each parameter set is a unit struct with `generate(rng) -> (SigningKey, Verifyin
 | `MlDsa87` | 4896 B | 2592 B | 4627 B |
 
 Key/signature types: `SigningKey44/65/87`, `VerifyingKey44/65/87`, `Signature44/65/87`. `SigningKey::sign(msg) -> Signature`; `VerifyingKey::verify(msg, &sig)`. Context-string variants are provided as free functions: `mldsa44_sign_ctx` / `mldsa44_verify_ctx` (and the `65` / `87` equivalents).
+
+> Each parameter set also has a byte-oriented trait-dispatch unit struct (`mldsa::MlDsa44Unit` / `MlDsa65Unit` / `MlDsa87Unit`) implementing `oxicrypto_core::{Signer, Verifier}` for algorithm-agnostic callers. These are reached via the `mldsa` module path and are not re-exported at the crate root.
+
+#### Stack-safe ML-DSA-87 (`stack_safe`)
+
+ML-DSA-87 keygen/sign/verify build large transient working buffers **on the stack** inside the upstream `ml-dsa` crate (the persistent key/signature objects are already heap-backed; the pressure comes from temporaries oxicrypto-pq cannot relocate without forking `ml-dsa`). A binary-search probe measured the full keygen+sign+verify sequence at ~768 KiB (debug) / ~512 KiB (release) worst case. This module runs the operation on a dedicated worker thread sized well above that measurement, so callers on a thread with a small or default stack cannot overflow it.
+
+| Item | Description |
+|------|-------------|
+| `OXICRYPTO_MLDSA_STACK` | `2 * 1024 * 1024` (2 MiB) — ≈2.7× the measured debug-build worst case |
+| `run_on_large_stack(f)` | Runs any `FnOnce() -> T + Send` closure on a scoped worker thread with a `OXICRYPTO_MLDSA_STACK`-byte stack; maps spawn/panic failures to `CryptoError::Internal` |
+| `mldsa87_generate_stack_safe()` | Stack-safe ML-DSA-87 keygen → `(signing_key_seed: Vec<u8>, verifying_key_bytes: Vec<u8>)`, seeded from OS entropy via `oxicrypto-rand` |
+| `mldsa87_sign_stack_safe(signing_key_seed, msg)` | Stack-safe sign → 4627-byte encoded signature |
+| `mldsa87_verify_stack_safe(verifying_key_bytes, msg, sig)` | Stack-safe verify |
+
+The byte-oriented outputs are fully interoperable with the typed `MlDsa87` / `SigningKey87` / `VerifyingKey87` / `Signature87` API above — use the stack-safe helpers only for the ML-DSA-87 operations themselves.
 
 ### SLH-DSA — FIPS 205 (`slh_dsa`)
 
@@ -154,6 +170,7 @@ All fallible operations return `oxicrypto_core::CryptoError`:
 - [`oxicrypto-core`](../oxicrypto-core) — defines the `Kem` / `Signer` / `Verifier` traits and `CryptoError`.
 - [`oxicrypto-kex`](../oxicrypto-kex) — the X25519 and ECDH P-384 classical halves of the hybrid KEMs.
 - [`oxicrypto-kdf`](../oxicrypto-kdf) — HKDF-SHA-384 used by `HybridKem1024P384`.
+- [`oxicrypto-rand`](../oxicrypto-rand) — OS-entropy seeding used internally by `stack_safe::mldsa87_generate_stack_safe`.
 - [`oxicrypto-sig`](../oxicrypto-sig) — classical signatures (Ed25519, ECDSA, RSA), complementary to ML-DSA / SLH-DSA.
 - [`oxicrypto`](../oxicrypto) — the facade re-exports the post-quantum API under a `pq` module.
 

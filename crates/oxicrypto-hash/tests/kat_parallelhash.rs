@@ -1,3 +1,5 @@
+// ParallelHash lives behind the `alloc` feature; skip in an alloc-free build.
+#![cfg(feature = "alloc")]
 //! Known-answer tests for ParallelHash128 / ParallelHash256 (NIST SP 800-185 §6).
 //!
 //! All vectors are the official NIST example values from the SP 800-185

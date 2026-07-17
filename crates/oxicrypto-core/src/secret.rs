@@ -1,3 +1,4 @@
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -73,11 +74,13 @@ impl<const N: usize> Clone for SecretKey<N> {
 ///
 /// Use `SecretVec` when the key length is not known at compile time (e.g.
 /// RSA private keys, derived key material of arbitrary length).
+#[cfg(feature = "alloc")]
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct SecretVec {
     bytes: Vec<u8>,
 }
 
+#[cfg(feature = "alloc")]
 impl SecretVec {
     /// Create a `SecretVec` from a `Vec<u8>`.
     #[must_use]
@@ -112,12 +115,14 @@ impl SecretVec {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl core::fmt::Debug for SecretVec {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "SecretVec(len={}, ***)", self.bytes.len())
     }
 }
 
+#[cfg(feature = "alloc")]
 impl Clone for SecretVec {
     fn clone(&self) -> Self {
         Self {

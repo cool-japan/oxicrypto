@@ -140,7 +140,7 @@ pub fn seal_with_random_nonce(
     Ok((nonce, ct))
 }
 
-use aead::{AeadInPlace, KeyInit, KeySizeUser};
+use aead::{AeadInOut, KeyInit, KeySizeUser};
 use oxicrypto_core::{Aead, CryptoError};
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -152,11 +152,11 @@ struct AeadParams {
     tag_len: usize,
 }
 
-/// Perform AEAD seal using the `AeadInPlace` interface to avoid heap allocation.
+/// Perform AEAD seal using the `AeadInOut` interface to avoid heap allocation.
 ///
 /// The output `ct_out` must be at least `pt.len() + params.tag_len` bytes.
 /// Returns `pt.len() + tag_len`.
-fn seal_in_place<C: AeadInPlace + KeyInit>(
+fn seal_in_place<C: AeadInOut + KeyInit>(
     key: &[u8],
     nonce: &[u8],
     aad: &[u8],
@@ -182,20 +182,20 @@ fn seal_in_place<C: AeadInPlace + KeyInit>(
     ct_out[..pt.len()].copy_from_slice(pt);
 
     let cipher = C::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-    let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+    let nonce_arr = aead::Nonce::<C>::try_from(nonce).map_err(|_| CryptoError::InvalidNonce)?;
     let tag = cipher
-        .encrypt_in_place_detached(nonce_arr, aad, &mut ct_out[..pt.len()])
+        .encrypt_inout_detached(&nonce_arr, aad, (&mut ct_out[..pt.len()]).into())
         .map_err(|_| CryptoError::Internal("AEAD encrypt failed"))?;
     ct_out[pt.len()..required].copy_from_slice(&tag);
     Ok(required)
 }
 
-/// Perform AEAD open using the `AeadInPlace` interface.
+/// Perform AEAD open using the `AeadInOut` interface.
 ///
 /// `ct` must be at least `params.tag_len` bytes (ciphertext ‖ tag).
 /// `pt_out` must be at least `ct.len() - params.tag_len` bytes.
 /// Returns the number of plaintext bytes written.
-fn open_in_place<C: AeadInPlace + KeyInit>(
+fn open_in_place<C: AeadInOut + KeyInit>(
     key: &[u8],
     nonce: &[u8],
     aad: &[u8],
@@ -220,15 +220,15 @@ fn open_in_place<C: AeadInPlace + KeyInit>(
     pt_out[..pt_len].copy_from_slice(&ct[..pt_len]);
 
     let cipher = C::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-    let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+    let nonce_arr = aead::Nonce::<C>::try_from(nonce).map_err(|_| CryptoError::InvalidNonce)?;
     let tag_bytes = &ct[pt_len..];
     if tag_bytes.len() != params.tag_len {
         return Err(CryptoError::BadInput);
     }
-    let tag = aead::Tag::<C>::clone_from_slice(tag_bytes);
+    let tag = aead::Tag::<C>::try_from(tag_bytes).map_err(|_| CryptoError::BadInput)?;
 
     cipher
-        .decrypt_in_place_detached(nonce_arr, aad, &mut pt_out[..pt_len], &tag)
+        .decrypt_inout_detached(&nonce_arr, aad, (&mut pt_out[..pt_len]).into(), &tag)
         .map_err(|_| CryptoError::InvalidTag)?;
 
     Ok(pt_len)
@@ -327,9 +327,10 @@ impl Aead for Aes128Gcm {
         ct_out.copy_from_slice(pt);
         let cipher =
             aes_gcm::Aes128Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let nonce_arr = aead::Nonce::<aes_gcm::Aes128Gcm>::try_from(nonce)
+            .map_err(|_| CryptoError::InvalidNonce)?;
         let tag = cipher
-            .encrypt_in_place_detached(nonce_arr, aad, ct_out)
+            .encrypt_inout_detached(&nonce_arr, aad, ct_out.into())
             .map_err(|_| CryptoError::Internal("AES-128-GCM encrypt failed"))?;
         Ok(tag.to_vec())
     }
@@ -357,10 +358,12 @@ impl Aead for Aes128Gcm {
         pt_out[..ct.len()].copy_from_slice(ct);
         let cipher =
             aes_gcm::Aes128Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
-        let tag_arr = aead::Tag::<aes_gcm::Aes128Gcm>::clone_from_slice(tag);
+        let nonce_arr = aead::Nonce::<aes_gcm::Aes128Gcm>::try_from(nonce)
+            .map_err(|_| CryptoError::InvalidNonce)?;
+        let tag_arr =
+            aead::Tag::<aes_gcm::Aes128Gcm>::try_from(tag).map_err(|_| CryptoError::BadInput)?;
         cipher
-            .decrypt_in_place_detached(nonce_arr, aad, &mut pt_out[..ct.len()], &tag_arr)
+            .decrypt_inout_detached(&nonce_arr, aad, (&mut pt_out[..ct.len()]).into(), &tag_arr)
             .map_err(|_| CryptoError::InvalidTag)
     }
 
@@ -386,9 +389,10 @@ impl Aead for Aes128Gcm {
         buf.resize(ct_len, 0u8);
         let cipher =
             aes_gcm::Aes128Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let nonce_arr = aead::Nonce::<aes_gcm::Aes128Gcm>::try_from(nonce)
+            .map_err(|_| CryptoError::InvalidNonce)?;
         let tag = cipher
-            .encrypt_in_place_detached(nonce_arr, aad, &mut buf[..pt_len])
+            .encrypt_inout_detached(&nonce_arr, aad, (&mut buf[..pt_len]).into())
             .map_err(|_| CryptoError::Internal("AES-128-GCM encrypt failed"))?;
         buf[pt_len..].copy_from_slice(&tag);
         Ok(())
@@ -488,9 +492,10 @@ impl Aead for Aes256Gcm {
         ct_out.copy_from_slice(pt);
         let cipher =
             aes_gcm::Aes256Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let nonce_arr = aead::Nonce::<aes_gcm::Aes256Gcm>::try_from(nonce)
+            .map_err(|_| CryptoError::InvalidNonce)?;
         let tag = cipher
-            .encrypt_in_place_detached(nonce_arr, aad, ct_out)
+            .encrypt_inout_detached(&nonce_arr, aad, ct_out.into())
             .map_err(|_| CryptoError::Internal("AES-256-GCM encrypt failed"))?;
         Ok(tag.to_vec())
     }
@@ -518,10 +523,12 @@ impl Aead for Aes256Gcm {
         pt_out[..ct.len()].copy_from_slice(ct);
         let cipher =
             aes_gcm::Aes256Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
-        let tag_arr = aead::Tag::<aes_gcm::Aes256Gcm>::clone_from_slice(tag);
+        let nonce_arr = aead::Nonce::<aes_gcm::Aes256Gcm>::try_from(nonce)
+            .map_err(|_| CryptoError::InvalidNonce)?;
+        let tag_arr =
+            aead::Tag::<aes_gcm::Aes256Gcm>::try_from(tag).map_err(|_| CryptoError::BadInput)?;
         cipher
-            .decrypt_in_place_detached(nonce_arr, aad, &mut pt_out[..ct.len()], &tag_arr)
+            .decrypt_inout_detached(&nonce_arr, aad, (&mut pt_out[..ct.len()]).into(), &tag_arr)
             .map_err(|_| CryptoError::InvalidTag)
     }
 
@@ -547,9 +554,10 @@ impl Aead for Aes256Gcm {
         buf.resize(ct_len, 0u8);
         let cipher =
             aes_gcm::Aes256Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let nonce_arr = aead::Nonce::<aes_gcm::Aes256Gcm>::try_from(nonce)
+            .map_err(|_| CryptoError::InvalidNonce)?;
         let tag = cipher
-            .encrypt_in_place_detached(nonce_arr, aad, &mut buf[..pt_len])
+            .encrypt_inout_detached(&nonce_arr, aad, (&mut buf[..pt_len]).into())
             .map_err(|_| CryptoError::Internal("AES-256-GCM encrypt failed"))?;
         buf[pt_len..].copy_from_slice(&tag);
         Ok(())
@@ -649,9 +657,10 @@ impl Aead for ChaCha20Poly1305 {
         ct_out.copy_from_slice(pt);
         let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
             .map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let nonce_arr = aead::Nonce::<chacha20poly1305::ChaCha20Poly1305>::try_from(nonce)
+            .map_err(|_| CryptoError::InvalidNonce)?;
         let tag = cipher
-            .encrypt_in_place_detached(nonce_arr, aad, ct_out)
+            .encrypt_inout_detached(&nonce_arr, aad, ct_out.into())
             .map_err(|_| CryptoError::Internal("ChaCha20Poly1305 encrypt failed"))?;
         Ok(tag.to_vec())
     }
@@ -679,10 +688,12 @@ impl Aead for ChaCha20Poly1305 {
         pt_out[..ct.len()].copy_from_slice(ct);
         let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
             .map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
-        let tag_arr = aead::Tag::<chacha20poly1305::ChaCha20Poly1305>::clone_from_slice(tag);
+        let nonce_arr = aead::Nonce::<chacha20poly1305::ChaCha20Poly1305>::try_from(nonce)
+            .map_err(|_| CryptoError::InvalidNonce)?;
+        let tag_arr = aead::Tag::<chacha20poly1305::ChaCha20Poly1305>::try_from(tag)
+            .map_err(|_| CryptoError::BadInput)?;
         cipher
-            .decrypt_in_place_detached(nonce_arr, aad, &mut pt_out[..ct.len()], &tag_arr)
+            .decrypt_inout_detached(&nonce_arr, aad, (&mut pt_out[..ct.len()]).into(), &tag_arr)
             .map_err(|_| CryptoError::InvalidTag)
     }
 
@@ -708,9 +719,10 @@ impl Aead for ChaCha20Poly1305 {
         buf.resize(ct_len, 0u8);
         let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
             .map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let nonce_arr = aead::Nonce::<chacha20poly1305::ChaCha20Poly1305>::try_from(nonce)
+            .map_err(|_| CryptoError::InvalidNonce)?;
         let tag = cipher
-            .encrypt_in_place_detached(nonce_arr, aad, &mut buf[..pt_len])
+            .encrypt_inout_detached(&nonce_arr, aad, (&mut buf[..pt_len]).into())
             .map_err(|_| CryptoError::Internal("ChaCha20Poly1305 encrypt failed"))?;
         buf[pt_len..].copy_from_slice(&tag);
         Ok(())

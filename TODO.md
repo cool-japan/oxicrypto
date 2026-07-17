@@ -1,6 +1,6 @@
 # OxiCrypto TODO
 
-**v0.2.0 (in progress)**
+**v0.2.1 released 2026-07-17 — ML-DSA-87 stack-safety (`stack_safe` module: `run_on_large_stack` + `mldsa87_*_stack_safe`, a measured 2 MiB worker-thread stack vs. the old hardcoded 8 MiB), genuine `core`-only builds via a new default-on `alloc` Cargo feature on `oxicrypto-core`/`oxicrypto-hash` (supersedes the old `no_std` feature; `cargo build --no-default-features` now links only `core`), a PQ→HKDF→AEAD hybrid public-key encryption integration test in the facade, the `aead` 0.5→0.6 `AeadInOut` migration (internal, non-breaking), a new `bench_arch_profile.sh` per-architecture benchmarking script, new `CONTRIBUTING.md`/`SECURITY.md` governance docs, dependency upgrades, and a security fix (`oxicrypto-mac` truncated-HMAC `verify_truncated`/`mac_truncated` now reject an oversized tag/output length with `CryptoError::BadInput` instead of panicking). 1736 tests pass (`--all-features`; 1612 with default features).**
 
 **v0.2.0 released 2026-06-22 — Quarantine closure: `aws-lc` and `pkcs11` features removed from the `oxicrypto` facade. `oxicrypto-adapter-aws-lc` and `oxicrypto-adapter-pkcs11` remain as workspace members but must be depended on directly. Default facade closure is now 100% Pure Rust (`--all-features` on `oxicrypto` pulls zero C dependencies). 1673 tests pass.**
 
@@ -70,7 +70,7 @@ Milestones derived from `../phase2/oxicrypto_blueprint.md` §Phased milestones.
 Each subcrate has a detailed `TODO.md` in its directory. Below is a summary index with estimated total new SLOC per crate.
 
 ### oxicrypto-core (crates/oxicrypto-core/TODO.md)
-**Current:** 187 SLOC. **Priority:** High (foundational — all other crates depend on it).
+**Current:** 1835 SLOC (was 187 at M0). **Priority:** High (foundational — all other crates depend on it).
 - `SecretKey<N>` / `SecretVec` wrappers with `Zeroize + ZeroizeOnDrop`
 - `KeyPair<SK, PK>` abstraction
 - Constant-time utilities (`ct_eq`, `ct_is_zero`, `ct_select`) via `subtle`
@@ -81,7 +81,7 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 - Estimated new SLOC: ~450
 
 ### oxicrypto-hash (crates/oxicrypto-hash/TODO.md)
-**Current:** 252 SLOC. **Priority:** High.
+**Current:** 2129 SLOC (was 252 at M0). **Priority:** High.
 - Streaming hash adapters for all existing algorithms
 - SHAKE128/256 XOFs (FIPS 202), cSHAKE, TupleHash (NIST SP 800-185)
 - BLAKE2b/BLAKE2s (RFC 7693) with keyed-hash mode
@@ -91,7 +91,7 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 - Estimated new SLOC: ~600
 
 ### oxicrypto-aead (crates/oxicrypto-aead/TODO.md)
-**Current:** 359 SLOC. **Priority:** High.
+**Current:** 3492 SLOC (was 359 at M0). **Priority:** High.
 - Streaming/chunked AEAD API for large messages
 - AES-CCM (RFC 3610), AES-OCB3 (RFC 7253), Deoxys-II
 - `Aead` trait impl for AES-GCM-SIV and XChaCha20 (currently inherent methods only)
@@ -100,7 +100,7 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 - Estimated new SLOC: ~750
 
 ### oxicrypto-mac (crates/oxicrypto-mac/TODO.md)
-**Current:** 170 SLOC. **Priority:** Medium.
+**Current:** 1851 SLOC (was 170 at M0). **Priority:** Medium.
 - Streaming HMAC adapter
 - HMAC-SHA-384, HMAC-SHA3-256, HMAC-SHA3-512
 - CMAC-AES (RFC 4493 / SP 800-38B)
@@ -110,7 +110,7 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 - Estimated new SLOC: ~490
 
 ### oxicrypto-sig (crates/oxicrypto-sig/TODO.md)
-**Current:** ~624 SLOC. **Priority:** High.
+**Current:** 4586 SLOC (was ~624 at M0). **Priority:** High.
 - Ed25519 batch verification, Ed25519ctx/ph, Ed448ph
 - BIP-340 Schnorr signatures (secp256k1)
 - ECDSA batch verification, deterministic nonce (RFC 6979)
@@ -121,7 +121,7 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 - Estimated new SLOC: ~1200
 
 ### oxicrypto-kex (crates/oxicrypto-kex/TODO.md)
-**Current:** 114 SLOC. **Priority:** Medium-High.
+**Current:** 2669 SLOC (was 114 at M0). **Priority:** Medium-High.
 - X448 (RFC 7748), ECDH P-256/P-384/P-521 (SP 800-56A)
 - Key encapsulation API (KEM trait adapter)
 - Ephemeral key generation for all algorithms
@@ -131,7 +131,7 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 - Estimated new SLOC: ~700
 
 ### oxicrypto-kdf (crates/oxicrypto-kdf/TODO.md)
-**Current:** ~280 SLOC. **Priority:** Medium.
+**Current:** 3517 SLOC (was ~280 at M0). **Priority:** Medium.
 - HKDF-Extract-only / Expand-only (RFC 5869 for TLS 1.3)
 - `Kdf` trait for PBKDF2, `PasswordHash` trait for Argon2/scrypt
 - Balloon hashing, bcrypt
@@ -142,7 +142,7 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 - Estimated new SLOC: ~650
 
 ### oxicrypto-rand (crates/oxicrypto-rand/TODO.md)
-**Current:** 77 SLOC. **Priority:** Medium.
+**Current:** 1062 SLOC (was 77 at M0). **Priority:** Medium.
 - Fork-safe RNG with PID tracking
 - Thread-local RNG, reseeding RNG (SP 800-90A)
 - Secure random integers with rejection sampling
@@ -152,28 +152,29 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 - Estimated new SLOC: ~500
 
 ### oxicrypto-pq (crates/oxicrypto-pq/TODO.md)
-**Current:** ~606 SLOC. **Priority:** Medium-High.
-- SLH-DSA (FIPS 205) all 12 parameter sets
+**Current:** 3242 SLOC (was ~606 at M0). **Priority:** Medium-High.
+- SLH-DSA (FIPS 205) parameter sets — 10 of 12 implemented (SHA2 128s/128f/192s/192f/256s/256f + SHAKE 128s/128f/256s/256f); `SlhDsaShake192s`/`SlhDsaShake192f` not yet present anywhere in `crates/oxicrypto-pq/src/` (verified by grep, 2026-07-17)
 - Hybrid KEM (ML-KEM + X25519, ML-KEM + ECDH P-384)
 - PQ-TLS integration helpers
 - Key/signature serialization
 - `Signer`/`Verifier` and `Kem` trait implementations
 - Zeroize on drop for private keys and shared secrets
-- Fix ML-DSA-87 stack overflow (box large arrays)
+- [x] Fix ML-DSA-87 stack overflow — measured (~768 KiB debug, not 8 MiB) + `stack_safe` module (`run_on_large_stack`, `mldsa87_*_stack_safe`, `OXICRYPTO_MLDSA_STACK` = 2 MiB); large arrays are already heap-backed upstream by `ml-dsa` (2026-07-17)
 - Estimated new SLOC: ~800
 
 ### oxicrypto (facade) (crates/oxicrypto/TODO.md)
-**Current:** 477 SLOC. **Priority:** Medium.
-- Complete `SigAlgo` enum (currently only Ed25519 despite 8 algorithms implemented)
-- Complete `KexAlgo` enum (currently only X25519)
-- Complete `KdfAlgo` enum (missing PBKDF2/Argon2/scrypt)
-- Update all factory functions for new algorithms
-- Algorithm suite presets (TLS 1.3, PQ-TLS 1.3)
-- Version info, available-algorithms listing
-- Estimated new SLOC: ~500
+**Current:** 2520 SLOC (was 477 at M0). **Priority:** Medium.
+- [x] Complete `SigAlgo` enum — now 12 variants (Ed25519, Ed448, EcdsaP256/384/521, RsaPkcs1v15Sha256/384/512, RsaPssSha256/384/512, SchnorrBip340), each wired through `signer_impl`/`verifier_impl` (verified against `crates/oxicrypto/src/algo/sig.rs`, 2026-07-17)
+- [x] Complete `KexAlgo` enum — now 5 variants (X25519, EcdhP256/384/521, X448), wired through `kex_impl` (verified against `crates/oxicrypto/src/algo/kex.rs`, 2026-07-17)
+- [x] Complete `KdfAlgo` enum — now 8 variants including `Pbkdf2Sha256`/`Pbkdf2Sha512`, `Argon2id`, `Scrypt`, `Balloon` (no longer missing PBKDF2/Argon2/scrypt), wired through `kdf_impl` (verified against `crates/oxicrypto/src/algo/kdf.rs`, 2026-07-17)
+- [x] Factory functions updated for all current algorithms — `aead_impl`, `hash_impl`, `signer_impl`/`verifier_impl`, `kex_impl`, `kdf_impl`, `mac_impl` each cover every variant of their selector enum
+- [x] Algorithm suite presets — `Suite` (TLS 1.3) and `PqSuite` (PQ-TLS 1.3 hybrid + hash-based-sig variant) in `crates/oxicrypto/src/version.rs`
+- [x] Version info, available-algorithms listing — `version()`/`VersionInfo`, `enabled_features()`, `available_algorithms()` in `crates/oxicrypto/src/version.rs`
+- Remaining: `MacAlgo` selector + `mac_impl` exist (`crates/oxicrypto/src/algo/mac.rs`) alongside a direct `HmacSha384` re-export at the crate root; most concrete signer/hasher/AEAD types are otherwise reachable only via the `*_impl()` factory functions, not as directly re-exported types (see the Quick Start section in README.md for the confirmed-working call pattern).
+- Actual growth: 477 → 2520 SLOC (+2043) across 0.1.1–0.2.1, well past the original ~500-SLOC estimate.
 
 ### oxicrypto-bench (crates/oxicrypto-bench/TODO.md)
-**Current:** ~341 SLOC. **Priority:** Low-Medium.
+**Current:** 2966 SLOC (was ~341 at M0). **Priority:** Low-Medium.
 - SHA-512, SHA3-256, BLAKE3 benchmark groups
 - HMAC, AES-128-GCM, AES-GCM-SIV, XChaCha20 benchmarks
 - X25519, ECDSA P-256, RSA-2048 benchmarks
@@ -183,9 +184,9 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 - Estimated new SLOC: ~550
 
 ### Total Estimated Backlog
-- Current total: ~3,487 SLOC (across all subcrates)
-- Estimated new SLOC: ~7,190
-- Target total: ~10,677 SLOC (realistic for a production-grade crypto library)
+- Current total (src/ only, 11 crates tracked above, tokei 2026-07-17): ~29,869 SLOC, up from ~3,487 SLOC at M0 — already well past the original ~10,677 SLOC target.
+- Full workspace (src + tests + examples + benches, all 14 crates, tokei 2026-07-17): ~48,023 SLOC across 220 Rust files (see README.md).
+- The per-crate estimates above are historical (M0-era) sizing guesses kept for context; most of the enumerated backlog items are now implemented (see the `[x]` markers above) and each crate's own `TODO.md` tracks current, detailed backlog status.
 
 ## Open Questions
 
@@ -194,3 +195,20 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 3. **Audit sponsorship.** Does COOLJAPAN sponsor a formal third-party audit of `aes-gcm` + `chacha20poly1305` + `hkdf`, or rely on community review? Cost vs. ecosystem trust signal.
 4. **`no_std` scope.** Full `no_std` + `alloc` from M0, or `std`-only until M2? Embedded/wasm users push for the former; complexity argues for the latter.
 5. **Constant-time test harness.** Adopt `dudect`-style statistical timing tests in `oxicrypto-bench`, or rely on upstream RustCrypto's per-crate constant-time discipline? The former is a meaningful ecosystem differentiator.
+
+
+---
+
+<!-- production-readiness-backlog 2026-07-16 -->
+## Production-Readiness Backlog — 2026-07-16
+
+_Consolidated from static audit + Opus adversarial bug-hunt (48 verified defects across noffi) + baseline nextest/clippy + design investigation. See `../NOFFI_PRODUCTION_BACKLOG.md` for the full cross-project list and severity/model legend. The 4 OxiCrypto-local HMAC bugs below were fixed in 0.2.1 (2026-07-17); other items on the cross-project list may still be open — check `../NOFFI_PRODUCTION_BACKLOG.md` directly._
+
+**Confirmed bugs — Opus-verified (untrusted-tag panics in HMAC verify/truncate):**
+- [x] **S · high** `oxicrypto-mac/src/lib.rs:154` — `HmacSha256::verify_truncated` checks `n<16` but not upper bound vs 32-byte buf → `buf[..n]` OOB panic when attacker tag > digest. R2/N0 — FIXED 2026-07-17: bounded to `16..=32`, returns `CryptoError::BadInput` (verified in current source).
+- [x] **S · high** `oxicrypto-mac/src/lib.rs:241` — same for `HmacSha512::verify_truncated` (n>64). R2/N0 — FIXED 2026-07-17: bounded to `16..=64`, returns `CryptoError::BadInput`.
+- [x] **S · high** `oxicrypto-mac/src/lib.rs:328` — same for `HmacSha384::verify_truncated` (n>48). R2/N0 — FIXED 2026-07-17: bounded to `16..=48`, returns `CryptoError::BadInput`.
+- [x] **S · med** `oxicrypto-mac/src/lib.rs:139` — `mac_truncated` (256/384/512) missing upper-bound → `copy_from_slice(&full[..n])` panic when out buf larger than digest. R2/N0 — FIXED 2026-07-17: all three `mac_truncated` variants now bound-check before `copy_from_slice`.
+- Fixed: `n` is now bounded to an inclusive `16..=digest_len` range in both `mac_truncated` and `verify_truncated` for all three HMAC variants; out-of-range lengths return `CryptoError::BadInput` instead of panicking. Regression tests added in `crates/oxicrypto-mac/src/tests_inline.rs` (`hmac_sha256_truncated_oversized_rejected`, `hmac_sha512_truncated_oversized_rejected`, `hmac_sha384_truncated_oversized_rejected`, plus full-digest-length boundary cases). See `CHANGELOG.md` `[0.2.1]` § Security.
+**Designed / audit:**
+- [x] **A/med · Y2** sub-TODO triage 17 items (pq 8 / kdf 5 / aead 2 / hash 1 / bench 1) — DONE 2026-07-17. Implemented: (b) ML-DSA-87 stack measured + `stack_safe` mitigation (2 MiB, was 8); (c) genuine alloc-free path via new `alloc` feature on `oxicrypto-core` + `oxicrypto-hash` (`--no-default-features` = core-only, `tests/no_alloc.rs`); (d) PQ→HKDF→AEAD hybrid-encryption integration test in the facade (closes the pq/kdf + pq/aead + aead/pq coordination items with one non-cyclic deliverable); bench `bench_arch_profile.sh` records the native aarch64/NEON baseline (x86_64/AES-NI leg documented as CI deferral). RC/version-gate re-check under Latest policy: `ml-kem 0.3.2` / `ml-dsa 0.1.1` / `argon2 0.6.0-rc.8` / `slh-dsa 0.2.0-rc.5` are all already the newest crates.io releases — no bump possible. Remaining items are genuine upstream/cross-crate deferrals (pq-preview 1.0 graduation, ML-KEM keygen heap profiling, composite sigs, OxiTLS negotiation) documented precisely in each sub-crate TODO.

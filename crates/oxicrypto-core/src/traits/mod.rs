@@ -14,7 +14,9 @@ pub use kex::KeyAgreement;
 pub use mac::{Mac, StreamingMac};
 pub use pq::Kem;
 pub use rng::Rng;
-pub use sig::{KeyGenerator, Signer, Verifier};
+#[cfg(feature = "alloc")]
+pub use sig::KeyGenerator;
+pub use sig::{Signer, Verifier};
 
 // ---------------------------------------------------------------------------
 // MaybeDebug — conditional Debug supertrait

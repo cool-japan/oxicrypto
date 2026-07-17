@@ -1,6 +1,9 @@
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
-use crate::{CryptoError, KeyPair, SecretVec};
+use crate::CryptoError;
+#[cfg(feature = "alloc")]
+use crate::{KeyPair, SecretVec};
 
 /// Asymmetric signing operation.
 ///
@@ -40,6 +43,10 @@ pub trait Verifier: Send + Sync + crate::traits::MaybeDebug {
 ///
 /// When the `debug` Cargo feature is enabled this trait gains `Debug` as a
 /// supertrait, enabling `Box<dyn KeyGenerator>` to be formatted with `{:?}`.
+///
+/// Requires the `alloc` feature (enabled by default): the returned key pair
+/// uses the heap-backed [`SecretVec`] and `Vec<u8>` types.
+#[cfg(feature = "alloc")]
 pub trait KeyGenerator: Send + Sync + crate::traits::MaybeDebug {
     /// Human-readable algorithm identifier (e.g. `"Ed25519"`).
     #[must_use]

@@ -391,14 +391,14 @@ fn acvp_mldsa44_sigver_wrong_key_fails() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Tests: ML-DSA-87 KAT (via 8 MiB thread)
+//  Tests: ML-DSA-87 KAT (via 2 MiB thread — see OXICRYPTO_MLDSA_STACK)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// ACVP sigGen: ML-DSA-87 signature has correct length and is deterministic.
 #[test]
 fn acvp_mldsa87_siggen_length_and_determinism() {
     std::thread::Builder::new()
-        .stack_size(8 * 1024 * 1024)
+        .stack_size(oxicrypto_pq::OXICRYPTO_MLDSA_STACK)
         .spawn(|| {
             use oxicrypto_pq::mldsa::SigningKey87;
             let sk = SigningKey87::from_bytes(&[0u8; 32]).expect("from_bytes87");
@@ -425,7 +425,7 @@ fn acvp_mldsa87_siggen_length_and_determinism() {
 #[test]
 fn acvp_mldsa87_sigver_round_trip() {
     std::thread::Builder::new()
-        .stack_size(8 * 1024 * 1024)
+        .stack_size(oxicrypto_pq::OXICRYPTO_MLDSA_STACK)
         .spawn(|| {
             use oxicrypto_pq::mldsa::MlDsa87;
             use rand_chacha::ChaCha20Rng;
@@ -445,7 +445,7 @@ fn acvp_mldsa87_sigver_round_trip() {
 #[test]
 fn acvp_mldsa87_sigver_wrong_message_fails() {
     std::thread::Builder::new()
-        .stack_size(8 * 1024 * 1024)
+        .stack_size(oxicrypto_pq::OXICRYPTO_MLDSA_STACK)
         .spawn(|| {
             use oxicrypto_pq::mldsa::MlDsa87;
             use rand_chacha::ChaCha20Rng;

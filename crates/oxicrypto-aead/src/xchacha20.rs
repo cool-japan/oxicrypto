@@ -5,11 +5,11 @@
 //! XChaCha20-Poly1305 extends the ChaCha20-Poly1305 nonce to 192 bits (24 bytes),
 //! making random nonce generation safe even for high-volume encryption.
 //!
-//! Backed by `chacha20poly1305::XChaCha20Poly1305` (same crate as M1, `aead 0.5` chain).
+//! Backed by `chacha20poly1305::XChaCha20Poly1305` (same crate as M1, `aead 0.6` chain).
 //!
 //! Key: 32 bytes. Nonce: 24 bytes. Tag: 16 bytes.
 
-use aead::{AeadInPlace, KeyInit};
+use aead::{AeadInOut, KeyInit};
 use chacha20poly1305::XChaCha20Poly1305 as Inner;
 use oxicrypto_core::{Aead, CryptoError};
 
@@ -59,9 +59,10 @@ impl Aead for XChaCha20Poly1305 {
         }
         ct_out[..pt.len()].copy_from_slice(pt);
         let cipher = Inner::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+        let nonce_arr =
+            aead::Nonce::<Inner>::try_from(nonce).map_err(|_| CryptoError::InvalidNonce)?;
         let tag = cipher
-            .encrypt_in_place_detached(nonce_arr, aad, &mut ct_out[..pt.len()])
+            .encrypt_inout_detached(&nonce_arr, aad, (&mut ct_out[..pt.len()]).into())
             .map_err(|_| CryptoError::Internal("XChaCha20Poly1305 encrypt failed"))?;
         ct_out[pt.len()..required].copy_from_slice(&tag);
         Ok(required)
@@ -89,10 +90,11 @@ impl Aead for XChaCha20Poly1305 {
         }
         pt_out[..pt_len].copy_from_slice(&ct[..pt_len]);
         let cipher = Inner::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
-        let tag = aead::Tag::<Inner>::clone_from_slice(&ct[pt_len..]);
+        let nonce_arr =
+            aead::Nonce::<Inner>::try_from(nonce).map_err(|_| CryptoError::InvalidNonce)?;
+        let tag = aead::Tag::<Inner>::try_from(&ct[pt_len..]).map_err(|_| CryptoError::BadInput)?;
         cipher
-            .decrypt_in_place_detached(nonce_arr, aad, &mut pt_out[..pt_len], &tag)
+            .decrypt_inout_detached(&nonce_arr, aad, (&mut pt_out[..pt_len]).into(), &tag)
             .map_err(|_| CryptoError::InvalidTag)?;
         Ok(pt_len)
     }
@@ -118,9 +120,10 @@ impl XChaCha20Poly1305 {
         }
         ct_out[..pt.len()].copy_from_slice(pt);
         let cipher = Inner::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce.as_ref());
+        let nonce_arr = aead::Nonce::<Inner>::try_from(nonce.as_ref())
+            .map_err(|_| CryptoError::InvalidNonce)?;
         let tag = cipher
-            .encrypt_in_place_detached(nonce_arr, aad, &mut ct_out[..pt.len()])
+            .encrypt_inout_detached(&nonce_arr, aad, (&mut ct_out[..pt.len()]).into())
             .map_err(|_| CryptoError::Internal("XChaCha20Poly1305 encrypt failed"))?;
         ct_out[pt.len()..required].copy_from_slice(&tag);
         Ok(required)
@@ -147,10 +150,11 @@ impl XChaCha20Poly1305 {
         }
         pt_out[..pt_len].copy_from_slice(&ct[..pt_len]);
         let cipher = Inner::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-        let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce.as_ref());
-        let tag = aead::Tag::<Inner>::clone_from_slice(&ct[pt_len..]);
+        let nonce_arr = aead::Nonce::<Inner>::try_from(nonce.as_ref())
+            .map_err(|_| CryptoError::InvalidNonce)?;
+        let tag = aead::Tag::<Inner>::try_from(&ct[pt_len..]).map_err(|_| CryptoError::BadInput)?;
         cipher
-            .decrypt_in_place_detached(nonce_arr, aad, &mut pt_out[..pt_len], &tag)
+            .decrypt_inout_detached(&nonce_arr, aad, (&mut pt_out[..pt_len]).into(), &tag)
             .map_err(|_| CryptoError::InvalidTag)?;
         Ok(pt_len)
     }

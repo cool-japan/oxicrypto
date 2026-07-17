@@ -11,10 +11,10 @@ Every RNG type is Pure Rust (`#![forbid(unsafe_code)]`) — no C/C++/assembly. T
 
 ```toml
 [dependencies]
-oxicrypto-rand = "0.1.0"
+oxicrypto-rand = "0.2.1"
 
 # Enable the per-thread RNG (with_thread_rng):
-oxicrypto-rand = { version = "0.1.0", features = ["std"] }
+oxicrypto-rand = { version = "0.2.1", features = ["std"] }
 ```
 
 ## Quick Start
@@ -113,13 +113,17 @@ Each function that takes no RNG argument internally creates a fresh OS-seeded `O
 |----------|-------------|
 | `with_thread_rng(f)` | Run a closure `FnOnce(&mut OxiRng) -> Result<R>` with a lazily-initialized, per-thread `OxiRng`. Has a re-entrancy guard. |
 
+### `std::io::Read` (requires `std`)
+
+`OxiRng` and `ReseedingRng` both implement [`std::io::Read`] — each `read()` call fills the entire output buffer with random bytes and returns `Ok(buf.len())`; an I/O error is returned only if the underlying OS RNG becomes unavailable. Useful anywhere a byte-stream reader is expected instead of the `Rng` trait.
+
 ## Feature Flags
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `std` | off | Enables `with_thread_rng` (thread-local RNG) and `std` propagation to `rand_chacha` / `oxicrypto-core` |
+| `std` | off | Enables `with_thread_rng` (thread-local RNG), `impl std::io::Read for OxiRng` / `ReseedingRng`, and `std` propagation to `rand_chacha` / `oxicrypto-core` |
 
-With default features the crate is `no_std`-compatible (uses `getrandom` for seeding).
+The crate does not currently declare `#![no_std]` at its crate root, so it links the standard library regardless of the `std` feature; `getrandom` is used for OS-seeded entropy either way. (`oxicrypto-core`, which this crate builds on, is genuinely `no_std` — see its README.)
 
 ## Error Variants
 

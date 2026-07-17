@@ -27,21 +27,21 @@ As of **0.2.0**, the non-Pure-Rust adapters (`aws-lc-rs` and PKCS#11 HSM) are **
 ```toml
 [dependencies]
 # Default: all Pure-Rust primitives (hash, aead, cipher, mac, sig, kex, kdf, rand).
-oxicrypto = "0.2.0"
+oxicrypto = "0.2.1"
 
 # Trait surface only — no algorithm implementations.
-oxicrypto = { version = "0.2.0", default-features = false }
+oxicrypto = { version = "0.2.1", default-features = false }
 
 # Add explicit runtime CPU-feature detection (oxicrypto::simd::cpu_info()).
-oxicrypto = { version = "0.2.0", features = ["simd"] }
+oxicrypto = { version = "0.2.1", features = ["simd"] }
 
 # Add the post-quantum preview (ML-KEM, ML-DSA, SLH-DSA, X-Wing).
-oxicrypto = { version = "0.2.0", features = ["pq-preview"] }
+oxicrypto = { version = "0.2.1", features = ["pq-preview"] }
 
 # Non-Pure-Rust adapters are NOT part of the oxicrypto facade from 0.2.0.
 # Add the adapter crates directly if needed:
-#   oxicrypto-adapter-aws-lc = { version = "0.2.0", features = ["aws-lc"] }
-#   oxicrypto-adapter-pkcs11 = { version = "0.2.0", features = ["pkcs11"] }
+#   oxicrypto-adapter-aws-lc = { version = "0.2.1", features = ["aws-lc"] }
+#   oxicrypto-adapter-pkcs11 = { version = "0.2.1", features = ["pkcs11"] }
 ```
 
 ## Quick Start
@@ -82,6 +82,42 @@ let features = oxicrypto::enabled_features();      // e.g. ["pure"]
 let algos = oxicrypto::available_algorithms();     // Vec<AlgorithmId>
 assert!(features.contains(&"pure"));
 assert!(!algos.is_empty());
+# }
+```
+
+Post-quantum hybrid public-key encryption (`pq-preview`): X-Wing768
+(ML-KEM-768 + X25519) encapsulate, derive an AES-256-GCM key with
+HKDF-SHA-256, then seal/open a payload. The same KEM-DEM construction is
+exercised end-to-end — both directions, plus tamper-detection — in
+[`tests/pq_hybrid_encryption.rs`](tests/pq_hybrid_encryption.rs):
+
+```rust
+# #[cfg(all(feature = "pq-preview", feature = "pure"))]
+# {
+use oxicrypto::hybrid::{Kem, XWing768};
+use oxicrypto::{aead_impl, hkdf_sha256_expand, hkdf_sha256_extract, AeadAlgo};
+
+// 1. Recipient publishes an X-Wing768 encapsulation key.
+let (decap_key, encap_key) = XWing768::kem_generate().expect("keygen");
+
+// 2. Sender encapsulates, then derives an AES-256-GCM key via HKDF-SHA-256.
+let (ciphertext, shared_secret) = XWing768::kem_encapsulate(&encap_key).expect("encapsulate");
+let prk = hkdf_sha256_extract(b"oxicrypto-hybrid-example", shared_secret.as_ref());
+let mut key = [0u8; 32];
+hkdf_sha256_expand(&prk, b"aes-256-gcm key", &mut key).expect("hkdf expand");
+let ct = aead_impl(AeadAlgo::Aes256Gcm)
+    .seal_to_vec(&key, &[0u8; 12], b"header", b"secret payload")
+    .expect("seal");
+
+// 3. Recipient decapsulates, re-derives the same key, and opens the payload.
+let recovered_secret = XWing768::kem_decapsulate(&decap_key, &ciphertext).expect("decapsulate");
+let recovered_prk = hkdf_sha256_extract(b"oxicrypto-hybrid-example", recovered_secret.as_ref());
+let mut recovered_key = [0u8; 32];
+hkdf_sha256_expand(&recovered_prk, b"aes-256-gcm key", &mut recovered_key).expect("hkdf expand");
+let pt = aead_impl(AeadAlgo::Aes256Gcm)
+    .open_to_vec(&recovered_key, &[0u8; 12], b"header", &ct)
+    .expect("open");
+assert_eq!(pt, b"secret payload");
 # }
 ```
 
@@ -154,17 +190,14 @@ All `*Algo` enums are `#[non_exhaustive]`, `Copy`, and implement `Display`,
 
 ### `HashAlgo`
 
-`Sha256`, `Sha384`, `Sha512`, `Sha3_256`, `Sha3_384`, `Sha3_512`, `Blake3`.
+`Sha256`, `Sha384`, `Sha512`, `Sha3_256`, `Sha3_384`, `Sha3_512`, `Sha512_256`,
+`Blake2b256`, `Blake2b512`, `Blake2s256`, `Blake3`.
 
 ### `AeadAlgo`
 
 `Aes128Gcm`, `Aes256Gcm`, `ChaCha20Poly1305`, `Aes128GcmSiv`, `Aes256GcmSiv`,
 `XChaCha20Poly1305`, `Aes128Ccm`, `Aes256Ccm`, `Aes128Ocb3`, `Aes256Ocb3`,
-`DeoxysII128`.
-
-> Note: `aead_impl` covers every variant except `Aes128Ocb3` / `Aes256Ocb3`,
-> which are available directly in [`oxicrypto-aead`](../oxicrypto-aead) and via
-> the AEAD benchmark.
+`DeoxysII128`. `aead_impl` returns a working implementation for every variant.
 
 ### `MacAlgo`
 
@@ -175,11 +208,12 @@ All `*Algo` enums are `#[non_exhaustive]`, `Copy`, and implement `Display`,
 ### `SigAlgo`
 
 `Ed25519`, `Ed448`, `EcdsaP256`, `EcdsaP384`, `EcdsaP521`, `RsaPkcs1v15Sha256`,
-`RsaPkcs1v15Sha384`, `RsaPkcs1v15Sha512`, `RsaPssSha256`, `SchnorrBip340`.
+`RsaPkcs1v15Sha384`, `RsaPkcs1v15Sha512`, `RsaPssSha256`, `RsaPssSha384`,
+`RsaPssSha512`, `SchnorrBip340`.
 
 ### `KexAlgo`
 
-`X25519`, `EcdhP256`, `EcdhP384`, `EcdhP521`.
+`X25519`, `EcdhP256`, `EcdhP384`, `EcdhP521`, `X448`.
 
 ### `KdfAlgo`
 
@@ -188,7 +222,9 @@ All `*Algo` enums are `#[non_exhaustive]`, `Copy`, and implement `Display`,
 
 ### `PqKemAlgo` / `PqSigAlgo` *(pq-preview)*
 
-- `PqKemAlgo`: `MlKem512`, `MlKem768`, `MlKem1024`.
+- `PqKemAlgo`: `MlKem512`, `MlKem768`, `MlKem1024`, plus two hybrid KEMs:
+  `XWing768` (ML-KEM-768 + X25519, draft-connolly-cfrg-xwing-kem-04) and
+  `HybridKem1024P384` (ML-KEM-1024 + ECDH P-384).
 - `PqSigAlgo`: `MlDsa44`, `MlDsa65`, `MlDsa87`, plus the ten SLH-DSA parameter
   sets (`SlhDsaSha2_{128,192,256}{s,f}`, `SlhDsaShake{128,256}{s,f}`).
 
@@ -208,8 +244,8 @@ All `*Algo` enums are `#[non_exhaustive]`, `Copy`, and implement `Display`,
 - AEAD: `AesGcmSiv128`, `AesGcmSiv256`, `XChaCha20Poly1305`, `Deoxys2_128`, `seal_box`, `open_box`, `seal_with_random_nonce`, `aes128_key_wrap`/`aes128_key_unwrap`, `aes256_key_wrap`/`aes256_key_unwrap`.
 - KDF: `argon2id_derive`, `scrypt_derive`, `pbkdf2_sha256`, `pbkdf2_sha512`, `balloon_sha256`, `balloon_sha512`, the `hkdf_sha{256,384,512}_{extract,expand}` family, `hkdf_expand_label_sha{256,384}`, plus `Argon2Params`, `BalloonHasher`/`BalloonParams`/`BalloonVariant`, `HkdfSha384`, the `KeyStretcher`/`Stretcher`/`StretchParams` abstraction, and per-algorithm `*StretchParams`.
 - Cipher (`oxicrypto::cipher`): `aes128_encrypt_block`, `aes256_encrypt_block`, `chacha20_keystream_block`, and the `*_KEY_LEN` / `*_BLOCK_LEN` / `*_NONCE_LEN` constants (QUIC header-protection building blocks).
-- Signatures: ECDSA P-256/384/521 signer + verifier types, `Ed448SigningKey`/`Ed448VerifyingKey`, the RSA PKCS#1v15 (SHA-256/384/512) and RSA-PSS-SHA-256 signer/verifier types, `SchnorrBip340`, `schnorr_bip340_sign_with_aux`.
-- MAC: `HmacSha384`.
+- Signatures: ECDSA P-256/384/521 signer + verifier types, `Ed448SigningKey`/`Ed448VerifyingKey`, the RSA PKCS#1v15 and RSA-PSS signer/verifier types (SHA-256/384/512 for both), `SchnorrBip340`, `schnorr_bip340_sign_with_aux`.
+- MAC: `HmacSha384`; TLS cipher-suite negotiation via `negotiate_mac`, `mac_name_for_suite`, `TlsCipherSuite` (maps a TLS 1.3/1.2 cipher suite to its HMAC/PRF — see the crate-level rustdoc for the full TLS 1.3 algorithm-selection guide).
 - KEX: `EcdhP256`, `EcdhP384`; HPKE (`oxicrypto::hpke`): `HpkeSuite`, `HpkeContextS`, `HpkeContextR`, `KemId`, `KdfId`, `AeadId` (RFC 9180).
 - RNG: `random_bytes`, `random_nonce`, `random_range`, `reseed`.
 
@@ -218,6 +254,7 @@ All `*Algo` enums are `#[non_exhaustive]`, `Copy`, and implement `Display`,
 | Module | Feature | Pure Rust? | Description |
 |--------|---------|-----------|-------------|
 | `oxicrypto::pq` | `pq-preview` | Yes | Re-exports [`oxicrypto-pq`](../oxicrypto-pq): ML-KEM, ML-DSA, SLH-DSA, X-Wing. API may change. |
+| `oxicrypto::hybrid` | `pq-preview` | Yes | Direct access to the fully-implemented hybrid KEM types: `XWing768` (ML-KEM-768 + X25519) and `HybridKem1024P384` (ML-KEM-1024 + ECDH P-384), plus the `Kem` trait they implement. |
 
 > **0.2.0 change:** The `oxicrypto::aws_lc` and `oxicrypto::pkcs11` modules have been removed from this facade. Users needing the aws-lc-rs FIPS backend or PKCS#11 HSM support must depend on [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc) and [`oxicrypto-adapter-pkcs11`](../oxicrypto-adapter-pkcs11) directly.
 
@@ -234,8 +271,8 @@ All `*Algo` enums are `#[non_exhaustive]`, `Copy`, and implement `Display`,
 
 | Feature | Algorithms |
 |---------|-----------|
-| `pure` (default) | AEAD: AES-GCM-128/256, ChaCha20-Poly1305, AES-CCM-128/256, AES-GCM-SIV-128/256, XChaCha20-Poly1305, Deoxys-II-128, AES Key Wrap 128/256. MAC: HMAC-SHA2-256/384/512, HMAC-SHA3-256/512, CMAC-AES-128/256, KMAC128/256, Poly1305. Hash: SHA-256/384/512, SHA3-256/384/512, BLAKE3. Sig: Ed25519, Ed448, ECDSA P-256/384/521, RSA PKCS1v15 (SHA-256/384/512), RSA-PSS-SHA-256, Schnorr-BIP340. KEX: X25519, ECDH P-256/384/521 (+ HPKE). KDF: HKDF-SHA256/384/512, Argon2id, PBKDF2-SHA256/512, scrypt, Balloon. |
-| `pq-preview` | ML-KEM-512/768/1024 (FIPS 203), ML-DSA-44/65/87 (FIPS 204), SLH-DSA (all 10 param sets, FIPS 205), X-Wing hybrid KEM. |
+| `pure` (default) | AEAD: AES-GCM-128/256, ChaCha20-Poly1305, AES-CCM-128/256, AES-GCM-SIV-128/256, XChaCha20-Poly1305, AES-OCB3-128/256, Deoxys-II-128, AES Key Wrap 128/256. MAC: HMAC-SHA2-256/384/512, HMAC-SHA3-256/512, CMAC-AES-128/256, KMAC128/256, Poly1305. Hash: SHA-256/384/512, SHA3-256/384/512, SHA-512/256, BLAKE2b-256/512, BLAKE2s-256, BLAKE3. Sig: Ed25519, Ed448, ECDSA P-256/384/521, RSA PKCS1v15 (SHA-256/384/512), RSA-PSS (SHA-256/384/512), Schnorr-BIP340. KEX: X25519, X448, ECDH P-256/384/521 (+ HPKE). KDF: HKDF-SHA256/384/512, Argon2id, PBKDF2-SHA256/512, scrypt, Balloon. |
+| `pq-preview` | ML-KEM-512/768/1024 (FIPS 203), ML-DSA-44/65/87 (FIPS 204), SLH-DSA (all 10 param sets, FIPS 205), X-Wing hybrid KEM (ML-KEM-768 + X25519), ML-KEM-1024 + ECDH P-384 hybrid KEM. |
 | `simd` | Runtime SIMD dispatch reporting via `simd::cpu_info()`. |
 | `std` | Propagates `std` to all sub-crates. |
 
@@ -285,13 +322,23 @@ cargo run -p oxicrypto --example kex       # key exchange
 cargo run -p oxicrypto --example pq_kem --features pq-preview  # ML-KEM (PQ)
 ```
 
+`tests/pq_hybrid_encryption.rs` (behind `pq-preview`) is a further worked
+example beyond the `examples/` binaries above: a complete ML-KEM-768 /
+X-Wing768 → HKDF-SHA-256 → AES-256-GCM hybrid public-key encryption round
+trip, including tamper-detection and a distinct-ciphertexts-derive-distinct-keys
+check. Run it directly with:
+
+```bash
+cargo test -p oxicrypto --features pq-preview --test pq_hybrid_encryption
+```
+
 ## Cross-references
 
 - [`oxicrypto-core`](../oxicrypto-core) — trait surface, `CryptoError`, `AlgorithmId`, secure wrappers.
 - [`oxicrypto-hash`](../oxicrypto-hash), [`oxicrypto-aead`](../oxicrypto-aead), [`oxicrypto-cipher`](../oxicrypto-cipher), [`oxicrypto-mac`](../oxicrypto-mac), [`oxicrypto-sig`](../oxicrypto-sig), [`oxicrypto-kex`](../oxicrypto-kex), [`oxicrypto-kdf`](../oxicrypto-kdf), [`oxicrypto-rand`](../oxicrypto-rand) — the Pure-Rust primitive crates.
 - [`oxicrypto-pq`](../oxicrypto-pq) — post-quantum primitives (`pq-preview`).
 - [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc), [`oxicrypto-adapter-pkcs11`](../oxicrypto-adapter-pkcs11) — standalone non-Pure-Rust adapters (not re-exported via this facade from 0.2.0; depend on them directly).
-- [`oxicrypto-bench`](../oxicrypto-bench) — Criterion benchmarks against `ring` and `aws-lc-rs`.
+- [`oxicrypto-bench`](../oxicrypto-bench) — Criterion benchmarks against `ring`.
 
 ## License
 

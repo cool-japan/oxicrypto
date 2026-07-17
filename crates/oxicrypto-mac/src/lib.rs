@@ -127,11 +127,12 @@ impl HmacSha256 {
     /// Compute a truncated HMAC-SHA-256 tag.
     ///
     /// Writes the first `out.len()` bytes of the full 32-byte HMAC into `out`.
-    /// Returns [`CryptoError::BadInput`] if `out.len() < 16` (minimum safe
-    /// truncation length per NIST SP 800-117).
+    /// Returns [`CryptoError::BadInput`] if `out.len()` is outside `16..=32`
+    /// (16 is the minimum safe truncation length per NIST SP 800-117; 32 is
+    /// the full digest length).
     pub fn mac_truncated(&self, key: &[u8], msg: &[u8], out: &mut [u8]) -> Result<(), CryptoError> {
         let n = out.len();
-        if n < 16 {
+        if !(16..=32).contains(&n) {
             return Err(CryptoError::BadInput);
         }
         let mut full = [0u8; 32];
@@ -142,11 +143,11 @@ impl HmacSha256 {
 
     /// Verify a truncated HMAC-SHA-256 tag in constant time.
     ///
-    /// Returns [`CryptoError::BadInput`] if `tag.len() < 16`, or
-    /// [`CryptoError::InvalidTag`] on mismatch.
+    /// Returns [`CryptoError::BadInput`] if `tag.len()` is outside `16..=32`,
+    /// or [`CryptoError::InvalidTag`] on mismatch.
     pub fn verify_truncated(&self, key: &[u8], msg: &[u8], tag: &[u8]) -> Result<(), CryptoError> {
         let n = tag.len();
-        if n < 16 {
+        if !(16..=32).contains(&n) {
             return Err(CryptoError::BadInput);
         }
         let mut buf = [0u8; 32];
@@ -215,10 +216,10 @@ impl HmacSha512 {
     /// Compute a truncated HMAC-SHA-512 tag.
     ///
     /// Writes the first `out.len()` bytes of the full 64-byte HMAC into `out`.
-    /// Returns [`CryptoError::BadInput`] if `out.len() < 16`.
+    /// Returns [`CryptoError::BadInput`] if `out.len()` is outside `16..=64`.
     pub fn mac_truncated(&self, key: &[u8], msg: &[u8], out: &mut [u8]) -> Result<(), CryptoError> {
         let n = out.len();
-        if n < 16 {
+        if !(16..=64).contains(&n) {
             return Err(CryptoError::BadInput);
         }
         let mut full = [0u8; 64];
@@ -229,11 +230,11 @@ impl HmacSha512 {
 
     /// Verify a truncated HMAC-SHA-512 tag in constant time.
     ///
-    /// Returns [`CryptoError::BadInput`] if `tag.len() < 16`, or
-    /// [`CryptoError::InvalidTag`] on mismatch.
+    /// Returns [`CryptoError::BadInput`] if `tag.len()` is outside `16..=64`,
+    /// or [`CryptoError::InvalidTag`] on mismatch.
     pub fn verify_truncated(&self, key: &[u8], msg: &[u8], tag: &[u8]) -> Result<(), CryptoError> {
         let n = tag.len();
-        if n < 16 {
+        if !(16..=64).contains(&n) {
             return Err(CryptoError::BadInput);
         }
         let mut buf = [0u8; 64];
@@ -302,10 +303,10 @@ impl HmacSha384 {
     /// Compute a truncated HMAC-SHA-384 tag.
     ///
     /// Writes the first `out.len()` bytes of the full 48-byte HMAC into `out`.
-    /// Returns [`CryptoError::BadInput`] if `out.len() < 16`.
+    /// Returns [`CryptoError::BadInput`] if `out.len()` is outside `16..=48`.
     pub fn mac_truncated(&self, key: &[u8], msg: &[u8], out: &mut [u8]) -> Result<(), CryptoError> {
         let n = out.len();
-        if n < 16 {
+        if !(16..=48).contains(&n) {
             return Err(CryptoError::BadInput);
         }
         let mut full = [0u8; 48];
@@ -316,11 +317,11 @@ impl HmacSha384 {
 
     /// Verify a truncated HMAC-SHA-384 tag in constant time.
     ///
-    /// Returns [`CryptoError::BadInput`] if `tag.len() < 16`, or
-    /// [`CryptoError::InvalidTag`] on mismatch.
+    /// Returns [`CryptoError::BadInput`] if `tag.len()` is outside `16..=48`,
+    /// or [`CryptoError::InvalidTag`] on mismatch.
     pub fn verify_truncated(&self, key: &[u8], msg: &[u8], tag: &[u8]) -> Result<(), CryptoError> {
         let n = tag.len();
-        if n < 16 {
+        if !(16..=48).contains(&n) {
             return Err(CryptoError::BadInput);
         }
         let mut buf = [0u8; 48];

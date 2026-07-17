@@ -5,18 +5,18 @@
 
 `oxicrypto-aead` is the Authenticated-Encryption-with-Associated-Data layer of the OxiCrypto stack. It implements the [`oxicrypto_core::Aead`](https://crates.io/crates/oxicrypto-core) and `StreamingAead` traits over a broad family of AEAD constructions — AES-GCM, ChaCha20-Poly1305, the misuse-resistant AES-GCM-SIV and Deoxys-II, extended-nonce XChaCha20-Poly1305, AES-CCM, and AES-OCB3 — plus RFC 3394 key wrap, a STREAM chunked construction, monotonic nonce sequences, and a self-describing SealedBox wire format.
 
-The crate is **Pure Rust** with `#![forbid(unsafe_code)]`, built on the RustCrypto `aes-gcm`, `chacha20poly1305`, `aes-gcm-siv`, `ocb3`, `aes-kw`, and `aead` crates (the `aead 0.5` chain). There is no `ring`, no `aws-lc`, and no C/C++/Fortran in the default build. The detached seal/open helpers operate in place (via `AeadInPlace`) to minimise heap traffic, and tag verification on `open` is delegated to the underlying constant-time RustCrypto implementations; Deoxys-II additionally verifies its tag via [`oxicrypto_core::ct_eq`].
+The crate is **Pure Rust** with `#![forbid(unsafe_code)]`, built on the RustCrypto `aes-gcm`, `chacha20poly1305`, `aes-gcm-siv`, `ocb3`, `aes-kw`, and `aead` crates (the `aead 0.6` chain). There is no `ring`, no `aws-lc`, and no C/C++/Fortran in the default build. The detached seal/open helpers operate in place (via `AeadInOut`) to minimise heap traffic, and tag verification on `open` is delegated to the underlying constant-time RustCrypto implementations; Deoxys-II additionally verifies its tag via [`oxicrypto_core::ct_eq`].
 
 ## Installation
 
 ```toml
 [dependencies]
-oxicrypto-aead = "0.1.0"
+oxicrypto-aead = "0.2.1"
 ```
 
 ```toml
 # Inherit std from oxicrypto-core
-oxicrypto-aead = { version = "0.1.0", features = ["std"] }
+oxicrypto-aead = { version = "0.2.1", features = ["std"] }
 ```
 
 ## Quick Start
@@ -71,7 +71,7 @@ All of the following implement the `Aead` trait. Key, nonce, and tag sizes are i
 
 > **OCB3 patent note**: OCB3 is covered by patents held by Phillip Rogaway; a royalty-free licence is available for open-source software and for military use (RFC 7253 §1.1).
 
-The `Aead` trait methods are `name`, `key_len`, `nonce_len`, `tag_len`, `seal`, `open`, plus the allocating convenience defaults `seal_to_vec` and `open_to_vec`. `seal` writes `ciphertext || tag` and returns `pt.len() + tag_len`; `open` returns `ct.len() - tag_len`.
+The `Aead` trait methods are `name`, `key_len`, `nonce_len`, `tag_len`, `seal`, `open`, the allocating convenience defaults `seal_to_vec`/`open_to_vec`, detached-tag `seal_detached`/`open_detached`, buffer-reusing `seal_in_place`, and the `max_plaintext_len` size-limit accessor (an RFC-correct per-algorithm ceiling; `u64::MAX` by default). `seal` writes `ciphertext || tag` and returns `pt.len() + tag_len`; `open` returns `ct.len() - tag_len`.
 
 ### Streaming AEAD (`oxicrypto_core::StreamingAead`)
 
@@ -102,10 +102,20 @@ Standalone API that does **not** implement `Aead` (key wrapping has no nonce). W
 | Item | Description |
 |------|-------------|
 | `NonceSequence<N>::new(prefix)` | Construct from a fixed prefix (length `N − 8`) |
+| `NonceSequence<N>::with_random_prefix()` | Construct with a cryptographically random prefix drawn from `oxicrypto-rand`'s `OxiRng` (requires the `rand` feature) |
 | `NonceSequence<N>::generate()` | Produce the next `[u8; N]` nonce |
 | `NonceSequence<N>::count()` | Current counter value (`u64`) |
 | `Nonce12` | `NonceSequence<12>` — AES-GCM, ChaCha20-Poly1305 |
 | `Nonce24` | `NonceSequence<24>` — XChaCha20-Poly1305 |
+
+Separately, [`NonceBytes<N>`] (aliases `Nonce12Bytes = NonceBytes<12>`, `Nonce24Bytes = NonceBytes<24>`) is a type-safe fixed-size nonce newtype — `Deref<Target = [u8]>`, `From<[u8; N]>`, `TryFrom<&[u8]>` — for callers who want a typed nonce value instead of a raw slice; it does not track a counter the way `NonceSequence` does.
+
+### Misuse-resistant & key-committing extensions
+
+| Type | Description |
+|------|-------------|
+| `SyntheticIvAes256Gcm` | Deterministic AES-256-GCM: `K_enc`/`K_mac` are split from the master key via HKDF-SHA-256, and the nonce is `HMAC-SHA-256(K_mac, aad ‖ pt)[..12]`. Implements `Aead`; callers **must** pass `nonce = &[]` (it is derived internally, and `open` re-derives and constant-time-compares it for a key-committing side effect). `tag_len()` returns 28 (12-byte nonce prefix + 16-byte GCM tag). **Weaker than RFC 8452 AES-GCM-SIV** — prefer `AesGcmSiv256` when nonce-misuse resistance is the goal; this type exists for environments that require standard AES-GCM but cannot guarantee unique nonces. |
+| `CommittingAead<'a>` | Wraps any `&dyn Aead` with the **UtC** (Bellare–Hoang, "Efficient Schemes for Committing AE", EUROCRYPT 2022) **CMT-1** key-committing transform: output is `commitment(32 bytes) ‖ inner_ciphertext`, where `commitment` and the inner sub-key are both derived from the wrapping key via HKDF-SHA-256. Defends against invisible-salamander / partitioning-oracle attacks (Grubbs et al., CCS 2017). `new(inner)`, `seal(key, nonce, aad, pt)`, `open(key, nonce, aad, ct)`, `overhead()` (always 32). |
 
 ### SealedBox & random-nonce helpers
 
@@ -119,13 +129,16 @@ Both `seal_box` and `seal_with_random_nonce` take `aead: &dyn Aead` and `rng: &m
 
 ### Re-exports at crate root
 
-`Aes128Gcm`, `Aes256Gcm`, `ChaCha20Poly1305` (inline); `AesGcmSiv128`, `AesGcmSiv256`; `XChaCha20Poly1305`; `Aes128Ccm`, `Aes256Ccm`; `Aes128Ocb3`, `Aes256Ocb3`; `Deoxys2_128`; `Aes256GcmStream`, `ChaCha20Poly1305Stream`; `Nonce12`, `Nonce24`, `NonceSequence`; `aes128_key_wrap`/`aes128_key_unwrap`/`aes256_key_wrap`/`aes256_key_unwrap`; `seal_box`, `open_box`; and `seal_with_random_nonce`.
+`Aes128Gcm`, `Aes256Gcm`, `ChaCha20Poly1305` (inline); `AesGcmSiv128`, `AesGcmSiv256`; `XChaCha20Poly1305`; `Aes128Ccm`, `Aes256Ccm`; `Aes128Ocb3`, `Aes256Ocb3`; `Deoxys2_128`; `SyntheticIvAes256Gcm`; `CommittingAead`; `Aes256GcmStream`, `ChaCha20Poly1305Stream`; `Nonce12`, `Nonce24`, `NonceSequence`; `NonceBytes`, `Nonce12Bytes`, `Nonce24Bytes`; `aes128_key_wrap`/`aes128_key_unwrap`/`aes256_key_wrap`/`aes256_key_unwrap`; `seal_box`, `open_box`; and `seal_with_random_nonce`.
 
 ## Feature Flags
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `std` | off | Forwards to `oxicrypto-core/std`. The crate is otherwise `no_std + alloc`. |
+| `std` | off | Forwards to `oxicrypto-core/std`. |
+| `rand` | off | Pulls in `oxicrypto-rand` and enables `NonceSequence::with_random_prefix()`. |
+
+The crate does not currently declare `#![no_std]` at its crate root, so it links the standard library regardless of the `std` feature; `std` only forwards the flag to `oxicrypto-core`. (`oxicrypto-core` itself is genuinely `no_std` — see its README.)
 
 ## Cross-references
 

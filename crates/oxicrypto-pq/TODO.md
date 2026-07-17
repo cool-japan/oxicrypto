@@ -1,7 +1,7 @@
 # oxicrypto-pq TODO
 
 ## Status
-Post-quantum cryptography suite (33 + 311 + 262 = ~606 SLOC across 3 files). Implements ML-KEM-512/768/1024 (FIPS 203) with key generation, encapsulation, decapsulation, and deterministic test helpers. Implements ML-DSA-44/65/87 (FIPS 204) with key generation, signing, verification. Behind `pq-preview` feature flag. Note: ML-DSA-87 requires 8 MiB stack for tests due to large parameter sizes.
+Post-quantum cryptography suite (~4,310 SLOC across 6 files: `hybrid.rs`, `lib.rs`, `mldsa.rs`, `mlkem.rs`, `slh_dsa.rs`, `stack_safe.rs`). Implements ML-KEM-512/768/1024 (FIPS 203), ML-DSA-44/65/87 (FIPS 204), and 10 of 12 SLH-DSA (FIPS 205) parameter sets, each with key generation, sign/encap and verify/decap, and `to_bytes`/`from_bytes` serialization; plus two hybrid KEMs (X-Wing ML-KEM-768+X25519 via `oxicrypto-kex`, ML-KEM-1024+ECDH-P384 via `oxicrypto-kex`+`oxicrypto-kdf`) and TLS 1.3 key-share wire helpers. All public API is available under `default = []` — there is no `pq-preview` gate (see the now-moot item below). 176 tests pass (`cargo nextest run -p oxicrypto-pq --all-features`, verified 2026-07-17). Note: ML-DSA-87 keygen/sign/verify build large transient buffers on the stack; a full sequence was **measured** at ~768 KiB worst-case (debug) / ~512 KiB (release). The [`stack_safe`] module provides `run_on_large_stack` + `mldsa87_*_stack_safe` helpers that run these on a 2 MiB worker thread (`OXICRYPTO_MLDSA_STACK`), and all ML-DSA-87 tests/benches now use the same 2 MiB figure (down from the previous over-conservative 8/16 MiB).
 
 ## Core Implementation
 - [x] Add SLH-DSA (Stateless Hash-Based Digital Signatures) per FIPS 205 — 6 parameter sets (SLH-DSA-SHA2-128s/f, SHA2-256s/f, SHAKE-128s/f) using `slh-dsa 0.2.0-rc.5` crate (done 2026-05-25)
@@ -95,8 +95,8 @@ Post-quantum cryptography suite (33 + 311 + 262 = ~606 SLOC across 3 files). Imp
 - [x] Expose key sizes as associated constants: `MlKem768::ENCAP_KEY_LEN`, `MlKem768::CIPHERTEXT_LEN`, etc. (done 2026-05-25)
 - [x] Add `Debug` implementations for all key/ciphertext/signature types (print algorithm + length, NOT key bytes) (done 2026-05-25)
 - [x] Add `PartialEq` for `SharedKeyPq` (constant-time via `subtle::ConstantTimeEq`) (done 2026-05-25)
-- [ ] Graduate `pq-preview` to default-on once FIPS 203/204 are finalized and `ml-kem`/`ml-dsa` reach 1.0
-  **BLOCKED: upstream** — `ml-kem` and `ml-dsa` are at 0.3.x / 0.1.x; graduation requires both crates to reach 1.0 and FIPS 203/204 to be formally published (FIPS 203 published August 2024; waiting for `ml-kem`/`ml-dsa` crate 1.0)
+- [x] Graduate `pq-preview` to default-on once FIPS 203/204 are finalized and `ml-kem`/`ml-dsa` reach 1.0
+  **MOOT — verified 2026-07-17:** there is no `pq-preview` feature in `Cargo.toml` (only `default = []` and `hazmat-test-vectors` exist); the full ML-KEM / ML-DSA / SLH-DSA / hybrid-KEM API has been unconditionally available under default features all along, so there is nothing left to graduate. The original upstream blocker (`ml-kem`/`ml-dsa` reaching 1.0 — still at 0.3.2 / 0.1.1 as of 2026-07-17) remains unresolved but no longer applies, since there is no feature gate.
 - [x] Rename `SharedKeyPq` to `SharedSecret` for consistency with classical key exchange terminology — `SharedKeyPq` is now a `#[deprecated]` type alias for `SharedSecret` (done 2026-05-26)
 - [x] Add `#[must_use]` on all keygen/encap/decap/sign/verify return types (done 2026-05-25)
 
@@ -123,20 +123,19 @@ Post-quantum cryptography suite (33 + 311 + 262 = ~606 SLOC across 3 files). Imp
 - [x] Compare ML-KEM-768 vs X25519 key exchange latency — added `bench_x25519` group in `benches/pq_benchmarks.rs` measuring `StaticSecret+PublicKey` keygen and DH, comparable to ML-KEM-768 encapsulate (done 2026-06-03)
 - [x] Compare ML-DSA-65 vs Ed25519 sign/verify latency — added `bench_ed25519` group in `benches/pq_benchmarks.rs` measuring keygen-from-bytes, sign, verify, comparable to ML-DSA-65 (done 2026-06-03)
 - [x] Benchmark hybrid KEM (ML-KEM-768 + X25519 + HKDF) total latency — X-Wing and HybridKem1024P384 benches in `benches/pq_benchmarks.rs` (done 2026-06-03)
-- [ ] Profile ML-DSA-87 stack and heap usage (fix 8 MiB stack requirement) — BLOCKED: requires ML-DSA-87 to expose its internals; current bench spawns 8 MiB threads
+- [x] Profile ML-DSA-87 stack and heap usage (fix 8 MiB stack requirement) — DONE 2026-07-17. Empirically measured (per-process binary-search probe against the live crate): full keygen+sign+verify needs ~768 KiB (debug) / ~512 KiB (release), NOT 8 MiB. The persistent key/sig objects are already heap-backed by `ml-dsa` (module-lattice `MaybeBox`, `alloc` on); the stack pressure is upstream *transient* buffers (`expand_a` NttMatrix, y/w/cs1/cs2/z/ct0) which oxicrypto-pq cannot relocate without forking `ml-dsa` — documented honestly in `stack_safe.rs`. Mitigation shipped: new `stack_safe` module with `run_on_large_stack<F,T>` (scoped worker thread, `OXICRYPTO_MLDSA_STACK` = 2 MiB ≈ 2.7× worst case, spawn/join failures → `CryptoError::Internal`, no unwrap/expect on the public path) + `mldsa87_generate/sign/verify_stack_safe` byte-oriented helpers. All ML-DSA-87 tests/benches lowered from 8/16 MiB to the shared 2 MiB constant. New `tests/stack_safe.rs` runs keygen+sign+verify on the DEFAULT test-thread stack (no manual 8 MiB wrapper).
 - [x] Benchmark SLH-DSA sign/verify (expected ~100x slower than ML-DSA) — SHA2-128s/f benches in `benches/pq_benchmarks.rs` (done 2026-06-03)
 - [ ] Profile memory allocation in ML-KEM keygen (large polynomial arrays) — DEFERRED: requires heap profiler (e.g. heaptrack, DHAT)
 
 ## Integration
 - [ ] Coordinate with `oxicrypto-kex` for hybrid key exchange (ML-KEM + X25519)
   **BLOCKED: cross-crate design** — Requires API decision in `oxicrypto-kex` (already implemented as `XWing768` in this crate); formal cross-crate trait integration deferred to ecosystem design review
-- [ ] Coordinate with `oxicrypto-kdf` for shared-secret-to-AEAD-key derivation (HKDF after KEM)
-  **BLOCKED: cross-crate design** — `oxicrypto-kdf` integration exists (used by `HybridKem1024P384`); formal trait-level abstraction requires ecosystem-wide design consensus
+- [x] Coordinate with `oxicrypto-kdf` for shared-secret-to-AEAD-key derivation (HKDF after KEM) — DONE 2026-07-17. Concrete end-to-end KEM-DEM deliverable added as `oxicrypto/tests/pq_hybrid_encryption.rs` (facade is the only place that sees pq+kdf+aead without inverting the dep graph): ML-KEM-768 / X-Wing encapsulate → HKDF-SHA-256 Extract+Expand → AES-256-GCM seal/open; asserts both sides derive the identical key, the payload round-trips, and a tampered ciphertext → `InvalidTag`. Beyond the existing `HybridKem1024P384` internal HKDF usage.
 - [ ] Coordinate with `oxicrypto-sig` for composite signatures (ML-DSA + Ed25519/ECDSA for backward compatibility)
   **BLOCKED: upstream** — composite signature standard (draft-ietf-pquip-hybrid-signature-spectrums) is not yet finalized; blocked on IETF/NIST decision
 - [ ] Provide PQ algorithm negotiation for OxiTLS: TLS 1.3 key share with ML-KEM
   **BLOCKED: cross-crate** — Requires `oxitls` to expose key-share extension API; blocked on oxitls PQ roadmap
 - [x] Add ML-KEM and ML-DSA benchmarks to `oxicrypto-bench` criterion suite (done — `oxicrypto-bench/benches/pq.rs` covers ML-KEM-512/768/1024 keygen/encap/decap and ML-DSA-44/65/87 keygen/sign/verify; see `oxicrypto-bench/TODO.md` lines 18-19)
 - [ ] Track `ml-kem` and `ml-dsa` crate updates: pin exact versions until 1.0 to avoid API breakage
-  **DEFERRED: maintenance** — Cargo.toml already pins exact versions (`ml-kem = "0.3.2"`, `ml-dsa = "0.1.0"`); ongoing monitoring task, no code changes needed
+  **DEFERRED: maintenance** — Cargo.toml already pins the exact latest crates.io releases (`ml-kem = "0.3.2"`, `ml-dsa = "0.1.1"`; re-verified 2026-07-17 via `cargo search` — both are the newest published versions, so the Latest-crates policy requires no bump). Ongoing monitoring task, no code changes needed.
 - [x] Research `slh-dsa` crate availability on crates.io for SLH-DSA (FIPS 205) implementation

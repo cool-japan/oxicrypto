@@ -1,7 +1,7 @@
 # oxicrypto-kdf TODO
 
 ## Status
-SA-kdf items implemented 2026-05-26. Added KBKDF SP 800-108 counter mode (SHA-256/384/512), Argon2d/Argon2i variants, SecretVec wrapping for derived keys, extract+expand KAT tests (RFC 5869 TC1/TC3 PRK+OKM), and RFC 8018 PBKDF2 test file. 122 tests passing, zero clippy warnings. Note: upstream dep `argon2 0.6.0-rc.8` is a release candidate.
+HKDF (SHA-256/384/512, plus split HKDF-Extract/HKDF-Expand and HKDF-Expand-Label for TLS 1.3/QUIC) and KBKDF SP 800-108 counter mode (SHA-256/384/512) implemented. Password hashing / key stretching: PBKDF2 (SHA-256/512), Argon2id/Argon2d/Argon2i, scrypt, Balloon (SHA-256/512, ASIACRYPT 2016), and a from-scratch OpenBSD-compatible bcrypt (`$2b$`) — each behind the `PasswordHash` trait, plus a runtime `KeyStretcher` abstraction (Argon2id/scrypt/PBKDF2-SHA-256/Balloon-SHA-256) and constant-time `verify_password`. Derived key material wrapped in `SecretVec` where applicable. 229 tests passing (plus one `#[ignore]`-gated ~1 GiB RFC 7914 scrypt vector), zero clippy warnings. Note: upstream dep `argon2 0.6.0-rc.8` remains a release candidate as of 2026-07-17 (see Integration section).
 
 ## Core Implementation
 - [x] Add HKDF-Extract-only and HKDF-Expand-only standalone functions per RFC 5869 Section 2 for protocols that need separated extract/expand phases (TLS 1.3 key schedule) (~40 SLOC)
@@ -109,9 +109,9 @@ SA-kdf items implemented 2026-05-26. Added KBKDF SP 800-108 counter mode (SHA-25
 - [x] Compare bcrypt cost=12 vs Argon2id INTERACTIVE latency (done 2026-06-03 — `benches/kdf_bench.rs::bench_bcrypt_vs_argon2id`)
 
 ## Integration
-- [ ] Track upstream stable release: `argon2` 0.6.0 stable — update Cargo.toml when RC graduates [BLOCKED: upstream argon2 crate still on RC as of 2026-06-03]
+- [ ] Track upstream stable release: `argon2` 0.6.0 stable — update Cargo.toml when RC graduates [BLOCKED: upstream. Re-verified 2026-07-17 via `cargo search`: the newest crates.io release is still `0.6.0-rc.8`. The last *stable* line is 0.5.3, which is OLDER than rc.8, so the Latest-crates policy correctly keeps the workspace pin at `0.6.0-rc.8`. No bump possible until 0.6.0 final ships.]
 - [x] Wire salt generation to `oxicrypto-rand` OxiRng (done 2026-06-03 — `generate_salt(rng, len)` in `src/lib.rs` takes `&mut oxicrypto_rand::OxiRng` directly; `generate_salt_16()`/`generate_salt_32()` use `oxicrypto_rand::random_bytes`)
 - [ ] Ensure HKDF uses `oxicrypto-mac` HMAC internally (currently uses `hkdf` crate directly; consider whether wrapping adds value or just indirection) [DEFERRED: adds indirection without security benefit; revisit if oxicrypto-mac gains FIPS compliance value]
 - [ ] Provide KDF algorithm negotiation for OxiTLS: TLS 1.3 key schedule uses HKDF-Expand-Label [BLOCKED on `oxicrypto-tls` design; `hkdf_expand_label_sha256/sha384` already implemented in `src/hkdf_label.rs`]
-- [ ] Coordinate with `oxicrypto-kex` for ECDH/X25519 shared-secret-to-key derivation (HKDF-Expand) [BLOCKED on `oxicrypto-kex` design]
-- [ ] Coordinate with `oxicrypto-pq` for ML-KEM shared-key-to-AEAD-key derivation [BLOCKED on `oxicrypto-pq` design]
+- [x] Coordinate with `oxicrypto-kex` for ECDH/X25519 shared-secret-to-key derivation (HKDF-Expand) — resolved by the 2026-05-30 HPKE work: `oxicrypto-kex/src/hpke/labeled.rs`'s `HpkeKdf` enum wraps this crate's `hkdf_sha{256,384,512}_{extract,expand}` directly to implement RFC 9180's LabeledExtract/LabeledExpand, which drives DHKEM's ExtractAndExpand over the X25519 / ECDH-P256 `KeyAgreement::agree()` shared secret. Verified 2026-07-17 via `oxicrypto-kex/src/hpke/labeled.rs` source read (imports `oxicrypto_kdf::{hkdf_sha256_expand, hkdf_sha256_extract, hkdf_sha384_expand, hkdf_sha384_extract, hkdf_sha512_expand, hkdf_sha512_extract}` directly).
+- [x] Coordinate with `oxicrypto-pq` for ML-KEM shared-key-to-AEAD-key derivation — DONE 2026-07-17. `hkdf_sha256_extract`/`hkdf_sha256_expand` drive the KEM-DEM key schedule in `oxicrypto/tests/pq_hybrid_encryption.rs` (ML-KEM-768 / X-Wing shared secret -> HKDF-SHA-256 -> AES-256-GCM key), verified both sides derive the identical key.

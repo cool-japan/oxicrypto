@@ -247,7 +247,8 @@ fn nist_acvp_mldsa65_sig_roundtrip_and_sigver() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ML-DSA-87 ACVP sigGen / sigVer (NIST sequential seed)
-//  Requires 8 MiB stack — all tests spawn a dedicated thread.
+//  Requires a larger stack — all tests spawn a dedicated 2 MiB thread
+//  (see `oxicrypto_pq::OXICRYPTO_MLDSA_STACK`).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// sigGen: ML-DSA-87 with NIST sequential seed produces correct FIPS 204 length (4627 bytes)
@@ -255,7 +256,7 @@ fn nist_acvp_mldsa65_sig_roundtrip_and_sigver() {
 #[test]
 fn nist_acvp_mldsa87_siggen_sequential_seed() {
     std::thread::Builder::new()
-        .stack_size(8 * 1024 * 1024)
+        .stack_size(oxicrypto_pq::OXICRYPTO_MLDSA_STACK)
         .spawn(|| {
             use oxicrypto_pq::mldsa::SigningKey87;
 
@@ -279,7 +280,7 @@ fn nist_acvp_mldsa87_siggen_sequential_seed() {
 #[test]
 fn nist_acvp_mldsa87_sigver_sequential_seed() {
     std::thread::Builder::new()
-        .stack_size(8 * 1024 * 1024)
+        .stack_size(oxicrypto_pq::OXICRYPTO_MLDSA_STACK)
         .spawn(|| {
             use oxicrypto_pq::mldsa::SigningKey87;
 
@@ -299,7 +300,7 @@ fn nist_acvp_mldsa87_sigver_sequential_seed() {
 #[test]
 fn nist_acvp_mldsa87_sigver_wrong_message_fails() {
     std::thread::Builder::new()
-        .stack_size(8 * 1024 * 1024)
+        .stack_size(oxicrypto_pq::OXICRYPTO_MLDSA_STACK)
         .spawn(|| {
             use oxicrypto_pq::mldsa::SigningKey87;
 
@@ -321,7 +322,7 @@ fn nist_acvp_mldsa87_sigver_wrong_message_fails() {
 #[test]
 fn nist_acvp_mldsa87_sigver_wrong_key_fails() {
     std::thread::Builder::new()
-        .stack_size(8 * 1024 * 1024)
+        .stack_size(oxicrypto_pq::OXICRYPTO_MLDSA_STACK)
         .spawn(|| {
             use rand_chacha::ChaCha20Rng;
             use rand_core::SeedableRng;
@@ -347,7 +348,7 @@ fn nist_acvp_mldsa87_sigver_wrong_key_fails() {
 #[test]
 fn nist_acvp_mldsa87_sign_is_deterministic() {
     std::thread::Builder::new()
-        .stack_size(8 * 1024 * 1024)
+        .stack_size(oxicrypto_pq::OXICRYPTO_MLDSA_STACK)
         .spawn(|| {
             use oxicrypto_pq::mldsa::SigningKey87;
 

@@ -173,11 +173,12 @@ fn test_mldsa65_context_string_domain_separation() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  ML-DSA-87  (spawned in a dedicated 8 MiB thread to avoid stack overflow)
+//  ML-DSA-87  (spawned in a dedicated 2 MiB thread to avoid stack overflow)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Shared stack size for ML-DSA-87 tests (8 MiB handles the large parameter set).
-const MLDSA87_STACK: usize = 8 * 1024 * 1024;
+/// Shared stack size for ML-DSA-87 tests. 2 MiB comfortably covers the measured
+/// worst-case (debug) footprint of ~768 KiB — see `oxicrypto_pq::stack_safe`.
+const MLDSA87_STACK: usize = oxicrypto_pq::OXICRYPTO_MLDSA_STACK;
 
 /// Property: sign → verify always succeeds for ML-DSA-87.
 #[test]

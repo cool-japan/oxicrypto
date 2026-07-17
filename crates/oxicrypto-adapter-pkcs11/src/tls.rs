@@ -1,7 +1,7 @@
 //! `rustls` `SigningKey` implementation backed by a PKCS#11 HSM session.
 //!
 //! This module is only compiled when the `tls` feature is enabled, which
-//! pulls in the `rustls` and `rustls-pki-types` crates.
+//! pulls in the `rustls` crate.
 //!
 //! # Overview
 //!

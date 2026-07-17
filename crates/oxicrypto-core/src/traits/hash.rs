@@ -1,3 +1,4 @@
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use crate::CryptoError;
@@ -21,6 +22,11 @@ pub trait Hash: Send + Sync + crate::traits::MaybeDebug {
     #[must_use = "result must be checked"]
     fn hash(&self, msg: &[u8], out: &mut [u8]) -> Result<(), CryptoError>;
     /// Convenience: hash `msg` and return the digest as a [`Vec<u8>`].
+    ///
+    /// Requires the `alloc` feature (enabled by default).  For an alloc-free
+    /// alternative, use [`hash_to_array`](Hash::hash_to_array) or write into a
+    /// caller-provided buffer with [`hash`](Hash::hash).
+    #[cfg(feature = "alloc")]
     #[must_use = "result must be checked"]
     fn hash_to_vec(&self, msg: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let mut out = alloc::vec![0u8; self.output_len()];

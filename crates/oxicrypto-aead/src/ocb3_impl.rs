@@ -13,9 +13,10 @@
 //! A royalty-free license is available for open-source software and for
 //! military use. See <https://www.rfc-editor.org/rfc/rfc7253#section-1.1>.
 
-use aead::{AeadInPlace, KeyInit, KeySizeUser};
-// ocb3 0.1.0 depends on cipher 0.4 / aes 0.8.x; use the aes re-exported by
-// aes-gcm (which also depends on aes 0.8.x) so the types are compatible.
+use aead::{AeadInOut, KeyInit, KeySizeUser};
+// ocb3 0.2.0-rc.3 targets the cipher 0.5 / aead 0.6 generation; use the aes
+// re-exported by aes-gcm 0.11 (which resolves to aes 0.9.1, implementing
+// cipher 0.5) so the OCB3 backend cipher types are compatible.
 use aes_gcm::aes::{Aes128, Aes256};
 use ocb3::aead::consts::{U12, U16};
 use ocb3::Ocb3;
@@ -44,7 +45,7 @@ fn ocb3_seal<C>(
     ct_out: &mut [u8],
 ) -> Result<usize, CryptoError>
 where
-    C: AeadInPlace + KeyInit + KeySizeUser,
+    C: AeadInOut + KeyInit + KeySizeUser,
 {
     if pt.len() as u64 > OCB3_MAX_PT {
         return Err(CryptoError::BadInput);
@@ -63,9 +64,9 @@ where
     ct_out[..pt.len()].copy_from_slice(pt);
 
     let cipher = C::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-    let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+    let nonce_arr = aead::Nonce::<C>::try_from(nonce).map_err(|_| CryptoError::InvalidNonce)?;
     let tag = cipher
-        .encrypt_in_place_detached(nonce_arr, aad, &mut ct_out[..pt.len()])
+        .encrypt_inout_detached(&nonce_arr, aad, (&mut ct_out[..pt.len()]).into())
         .map_err(|_| CryptoError::Internal("OCB3 encrypt failed"))?;
     ct_out[pt.len()..required].copy_from_slice(&tag);
     Ok(required)
@@ -80,7 +81,7 @@ fn ocb3_open<C>(
     pt_out: &mut [u8],
 ) -> Result<usize, CryptoError>
 where
-    C: AeadInPlace + KeyInit + KeySizeUser,
+    C: AeadInOut + KeyInit + KeySizeUser,
 {
     if key.len() != key_len {
         return Err(CryptoError::InvalidKey);
@@ -99,12 +100,12 @@ where
     pt_out[..pt_len].copy_from_slice(&ct[..pt_len]);
 
     let cipher = C::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
-    let nonce_arr = aead::generic_array::GenericArray::from_slice(nonce);
+    let nonce_arr = aead::Nonce::<C>::try_from(nonce).map_err(|_| CryptoError::InvalidNonce)?;
     let tag_bytes = &ct[pt_len..];
-    let tag = aead::Tag::<C>::clone_from_slice(tag_bytes);
+    let tag = aead::Tag::<C>::try_from(tag_bytes).map_err(|_| CryptoError::BadInput)?;
 
     cipher
-        .decrypt_in_place_detached(nonce_arr, aad, &mut pt_out[..pt_len], &tag)
+        .decrypt_inout_detached(&nonce_arr, aad, (&mut pt_out[..pt_len]).into(), &tag)
         .map_err(|_| CryptoError::InvalidTag)?;
 
     Ok(pt_len)

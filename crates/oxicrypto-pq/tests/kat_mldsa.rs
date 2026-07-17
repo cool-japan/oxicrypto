@@ -208,7 +208,9 @@ fn mldsa44_fips_size_constants() {
 //  ML-DSA-87 (larger stack needed for this parameter set)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MLDSA87_STACK: usize = 8 * 1024 * 1024; // 8 MiB
+// 2 MiB — the measured worst-case (debug) ML-DSA-87 keygen+sign+verify stack
+// footprint is ~768 KiB; see `oxicrypto_pq::stack_safe` for the measurement.
+const MLDSA87_STACK: usize = oxicrypto_pq::OXICRYPTO_MLDSA_STACK;
 
 #[test]
 fn mldsa87_seeded_sign_verify() {

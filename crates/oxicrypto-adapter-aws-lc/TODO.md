@@ -1,7 +1,7 @@
 # oxicrypto-adapter-aws-lc TODO
 
 ## Status
-Feature-gated (`aws-lc` feature, default off) BOUNDED_FFI adapter bridging `aws-lc-rs` to `oxicrypto-core` traits. AEAD (AES-128-GCM, AES-256-GCM, AES-256-GCM-SIV, ChaCha20-Poly1305), Hash (SHA-1, SHA-256/384/512), Signature (Ed25519, ECDSA-P256-SHA256, ECDSA-P384-SHA384, RSA-PKCS1-SHA256, RSA-PSS-SHA256), HKDF (SHA-256/384/512), and HMAC (SHA-256/384/512) modules are implemented. All types have Display impls. Integration tests cover NIST KAT vectors, RFC 8032 vector, cross-parity, error paths, and property-based seal/open. `AwsLcCryptoProvider` aggregate struct is in lib.rs.
+Feature-gated (`aws-lc` feature, default off) BOUNDED_FFI adapter bridging `aws-lc-rs` to `oxicrypto-core` traits. AEAD (AES-128-GCM, AES-256-GCM, AES-256-GCM-SIV, ChaCha20-Poly1305), Hash (SHA-1, SHA-256/384/512), Signature (Ed25519, ECDSA-P256-SHA256, ECDSA-P384-SHA384, RSA-PKCS1-SHA256, RSA-PSS-SHA256), HKDF (SHA-256/384/512), and HMAC (SHA-256/384/512) modules are implemented. All types have Display impls. Integration tests cover NIST KAT vectors, RFC 8032 vector, cross-parity, error paths, and property-based seal/open. `AwsLcCryptoProvider` aggregate struct is in lib.rs. 45 tests pass with `--all-features` (`cargo nextest run -p oxicrypto-adapter-aws-lc --all-features`, verified 2026-07-17); the default-features build (no `aws-lc`) compiles to zero types, with a single purity test confirming the empty surface.
 
 ## Core Implementation
 - [x] Add AES-256-GCM-SIV AEAD variant via `aws_lc_rs::aead::AES_256_GCM_SIV` (~60 SLOC: Algo variant, constructor, Aead trait impl adjustments) (planned 2026-06-03)

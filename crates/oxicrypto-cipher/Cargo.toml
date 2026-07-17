@@ -7,6 +7,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Pure Rust raw block/stream cipher primitives for OxiCrypto (AES single-block ECB, ChaCha20 keystream) used by QUIC header protection"
+readme = "README.md"
 keywords = ["cryptography", "aes", "chacha20", "quic", "cipher"]
 categories = ["cryptography"]
 

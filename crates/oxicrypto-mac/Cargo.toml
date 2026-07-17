@@ -7,6 +7,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Pure Rust MAC implementations for OxiCrypto (HMAC-SHA-256, HMAC-SHA-512)"
+readme = "README.md"
 keywords = ["cryptography", "hmac", "mac", "authentication", "pure-rust"]
 categories = ["cryptography"]
 

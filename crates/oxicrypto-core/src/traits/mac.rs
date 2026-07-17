@@ -1,3 +1,4 @@
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use crate::CryptoError;
@@ -53,6 +54,9 @@ pub trait Mac: Send + Sync + crate::traits::MaybeDebug {
     }
 
     /// Convenience: compute MAC and return the tag as a [`Vec<u8>`].
+    ///
+    /// Requires the `alloc` feature (enabled by default).
+    #[cfg(feature = "alloc")]
     #[must_use = "result must be checked"]
     fn mac_to_vec(&self, key: &[u8], msg: &[u8]) -> Result<Vec<u8>, CryptoError> {
         let mut out = alloc::vec![0u8; self.output_len()];

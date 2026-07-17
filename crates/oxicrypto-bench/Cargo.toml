@@ -7,6 +7,8 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Criterion benchmarks comparing OxiCrypto against ring and aws-lc-rs (dev-only)"
+readme = "README.md"
+publish = false
 keywords = ["cryptography", "benchmark", "aes-gcm", "chacha20", "ed25519"]
 categories = ["cryptography", "development-tools"]
 
@@ -86,7 +88,6 @@ getrandom      = { workspace = true }
 # They must NOT appear on normal dependency edges of any other crate.
 [dev-dependencies]
 ring          = { workspace = true }
-aws-lc-rs     = { workspace = true }
 # ed25519-dalek is a direct dev-dep so the batch-verify bench can use
 # Signature, SigningKey, VerifyingKey types (not re-exported by oxicrypto-sig).
 ed25519-dalek = { workspace = true }

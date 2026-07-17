@@ -1,4 +1,11 @@
-// placeholder — required by Cargo for [lib] bench = false
+//! `oxicrypto-bench` — dev-only helpers for the OxiCrypto Criterion benchmark suite.
+//!
+//! This `[lib]` target exists solely to satisfy Cargo's requirement for a
+//! library crate when `[lib] bench = false` is set; the real benchmarks are
+//! the criterion harnesses under `benches/` that compare OxiCrypto against
+//! `ring` and `aws-lc-rs`. `publish = false` — this crate is never published
+//! to crates.io. The functions below are small `--quick`-mode helpers shared
+//! by those benchmark binaries.
 
 /// Apply optional `--quick` mode to a Criterion benchmark group.
 ///

@@ -3,9 +3,9 @@
 [![Crates.io](https://img.shields.io/crates/v/oxicrypto-bench.svg)](https://crates.io/crates/oxicrypto-bench)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-`oxicrypto-bench` is a **development-only** crate that measures the performance of the Pure-Rust OxiCrypto primitives and compares them against the C/assembly-backed reference libraries `ring` and `aws-lc-rs`. It is not meant to be depended on by applications — it carries no meaningful public API. Its purpose is to provide a reproducible [Criterion](https://crates.io/crates/criterion) harness so that throughput and latency regressions are caught during development.
+`oxicrypto-bench` is a **development-only** crate that measures the performance of the Pure-Rust OxiCrypto primitives and compares them against the C/assembly-backed reference library `ring`. It is not meant to be depended on by applications — it carries no meaningful public API for downstream use. Its purpose is to provide a reproducible [Criterion](https://crates.io/crates/criterion) harness so that throughput and latency regressions are caught during development.
 
-The library target exists only to satisfy Cargo's requirement for a `lib` target while `[lib] bench = false`; the real content lives in the seven benchmark binaries under `benches/`. The `ring` and `aws-lc-rs` comparison baselines are pulled in strictly as `dev-dependencies` of this crate, so they never appear on the normal dependency edges of any other OxiCrypto crate (preserving the [Pure-Rust](https://github.com/cool-japan) default).
+The library target exists only to satisfy Cargo's requirement for a `lib` target while `[lib] bench = false`; the real content lives in the ten benchmark binaries under `benches/`. The `ring` comparison baseline is pulled in strictly as a `dev-dependency` of this crate, so it never appears on the normal dependency edges of any other OxiCrypto crate (preserving the [Pure-Rust](https://github.com/cool-japan) default).
 
 ## Installation
 
@@ -15,7 +15,7 @@ This crate is not published for downstream use; it is built from within the work
 # oxicrypto-bench is a workspace-internal dev crate; it is not added as a
 # dependency. The line below is shown only for completeness.
 [dev-dependencies]
-oxicrypto-bench = "0.1.0"
+oxicrypto-bench = "0.2.1"
 ```
 
 ## Quick Start
@@ -23,7 +23,7 @@ oxicrypto-bench = "0.1.0"
 Run every benchmark group in release mode (always benchmark with `--release`; debug builds are not representative):
 
 ```bash
-# All default benchmark binaries (hash, mac, aead, kdf, sig, kex)
+# All default benchmark binaries (hash, mac, aead, kdf, sig, kex, rand, factory_overhead, core)
 cargo bench -p oxicrypto-bench
 
 # A single benchmark binary
@@ -90,9 +90,13 @@ Notes:
 
 ## API Overview
 
-This crate intentionally has no public Rust API. Its `src/lib.rs` is a single
-placeholder line required by Cargo because `[lib] bench = false` is set. All
-functionality is delivered through the benchmark binaries enumerated above.
+This crate carries no meaningful public Rust API for downstream use. Its
+`src/lib.rs` exists to satisfy Cargo's requirement for a `lib` target because
+`[lib] bench = false` is set, and additionally exposes two small `--quick`-mode
+helpers shared by the benchmark binaries: `apply_quick_mode(&mut BenchmarkGroup)`
+(caps Criterion's sample size to 10 when `BENCH_QUICK=1` is set) and
+`is_quick_mode() -> bool`. All substantive benchmark functionality is delivered
+through the benchmark binaries enumerated above.
 
 ## Feature Flags
 
@@ -102,16 +106,19 @@ functionality is delivered through the benchmark binaries enumerated above.
 
 ## Comparison baselines
 
-The benchmarks compare the Pure-Rust OxiCrypto implementations against two
-industry reference libraries, included **only** as `dev-dependencies` of this
+The benchmarks compare the Pure-Rust OxiCrypto implementations against an
+industry reference library, included **only** as a `dev-dependency` of this
 crate:
 
 | Baseline | Nature | Notes |
 |----------|--------|-------|
 | [`ring`](https://crates.io/crates/ring) | C / assembly | Widely deployed BoringSSL-derived primitives. |
-| [`aws-lc-rs`](https://crates.io/crates/aws-lc-rs) | C (AWS-LC) | FIPS-validated; same backend as the `oxicrypto-adapter-aws-lc` adapter. |
 
-Because these are dev-only edges, they never contaminate the Pure-Rust
+`aws-lc-rs` was removed as a dev-dependency of this crate and is no longer a
+comparison baseline here; see [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc)
+for the production aws-lc-rs adapter.
+
+Because this is a dev-only edge, it never contaminates the Pure-Rust
 dependency graph of `oxicrypto` or any sibling crate consumed by applications.
 
 ## Benchmark Results Summary
@@ -170,7 +177,7 @@ comparison ratios.
 - [`oxicrypto-kdf`](../oxicrypto-kdf) — KDF primitives (`kdf` bench).
 - [`oxicrypto-rand`](../oxicrypto-rand) — `OxiRng`, used to fill benchmark inputs.
 - [`oxicrypto-pq`](../oxicrypto-pq) — post-quantum primitives (`pq` bench, `pq-preview` feature).
-- [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc) — production aws-lc-rs adapter (shares the comparison backend).
+- [`oxicrypto-adapter-aws-lc`](../oxicrypto-adapter-aws-lc) — production aws-lc-rs adapter (no longer used as a benchmark comparison baseline in this crate; depend on it directly for aws-lc-rs performance).
 
 ## License
 

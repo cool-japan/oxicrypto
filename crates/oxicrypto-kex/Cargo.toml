@@ -7,6 +7,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Pure Rust key exchange implementations for OxiCrypto (X25519)"
+readme = "README.md"
 keywords = ["cryptography", "x25519", "ecdh", "key-exchange", "pure-rust"]
 categories = ["cryptography"]
 
@@ -28,4 +29,4 @@ x448.workspace = true
 [dev-dependencies]
 rand_chacha.workspace = true
 hex.workspace = true
-oxicrypto-rand.workspace = true
+oxicrypto-rand = { path = "../oxicrypto-rand" }
