@@ -11,10 +11,10 @@ The crate is Pure Rust (`#![forbid(unsafe_code)]`), building on the RustCrypto `
 
 ```toml
 [dependencies]
-oxicrypto-pq = "0.3.0"
+oxicrypto-pq = "0.3.1"
 
 # Enable deterministic keygen/encap helpers for known-answer tests:
-oxicrypto-pq = { version = "0.3.0", features = ["hazmat-test-vectors"] }
+oxicrypto-pq = { version = "0.3.1", features = ["hazmat-test-vectors"] }
 ```
 
 ## Quick Start

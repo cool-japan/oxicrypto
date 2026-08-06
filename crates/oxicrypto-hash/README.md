@@ -11,12 +11,12 @@ The crate is **Pure Rust** and `#![no_std]` (with `alloc`), declaring `#![forbid
 
 ```toml
 [dependencies]
-oxicrypto-hash = "0.3.0"
+oxicrypto-hash = "0.3.1"
 ```
 
 ```toml
 # Enable file-hashing helpers and std::io::Write integrations
-oxicrypto-hash = { version = "0.3.0", features = ["std"] }
+oxicrypto-hash = { version = "0.3.1", features = ["std"] }
 ```
 
 ## Quick Start

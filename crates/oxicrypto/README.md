@@ -27,21 +27,21 @@ As of **0.2.0**, the non-Pure-Rust adapters (`aws-lc-rs` and PKCS#11 HSM) are **
 ```toml
 [dependencies]
 # Default: all Pure-Rust primitives (hash, aead, cipher, mac, sig, kex, kdf, rand).
-oxicrypto = "0.3.0"
+oxicrypto = "0.3.1"
 
 # Trait surface only — no algorithm implementations.
-oxicrypto = { version = "0.3.0", default-features = false }
+oxicrypto = { version = "0.3.1", default-features = false }
 
 # Add explicit runtime CPU-feature detection (oxicrypto::simd::cpu_info()).
-oxicrypto = { version = "0.3.0", features = ["simd"] }
+oxicrypto = { version = "0.3.1", features = ["simd"] }
 
 # Add the post-quantum preview (ML-KEM, ML-DSA, SLH-DSA, X-Wing).
-oxicrypto = { version = "0.3.0", features = ["pq-preview"] }
+oxicrypto = { version = "0.3.1", features = ["pq-preview"] }
 
 # Non-Pure-Rust adapters are NOT part of the oxicrypto facade from 0.2.0.
 # Add the adapter crates directly if needed:
-#   oxicrypto-adapter-aws-lc = { version = "0.3.0", features = ["aws-lc"] }
-#   oxicrypto-adapter-pkcs11 = { version = "0.3.0", features = ["pkcs11"] }
+#   oxicrypto-adapter-aws-lc = { version = "0.3.1", features = ["aws-lc"] }
+#   oxicrypto-adapter-pkcs11 = { version = "0.3.1", features = ["pkcs11"] }
 ```
 
 ## Quick Start

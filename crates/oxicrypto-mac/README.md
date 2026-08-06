@@ -11,7 +11,7 @@ The crate is Pure Rust (`#![forbid(unsafe_code)]`) and written in a `no_std`-por
 
 ```toml
 [dependencies]
-oxicrypto-mac = "0.3.0"
+oxicrypto-mac = "0.3.1"
 ```
 
 ## Quick Start

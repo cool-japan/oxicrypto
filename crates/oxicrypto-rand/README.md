@@ -11,10 +11,10 @@ Every RNG type is Pure Rust (`#![forbid(unsafe_code)]`) — no C/C++/assembly. T
 
 ```toml
 [dependencies]
-oxicrypto-rand = "0.3.0"
+oxicrypto-rand = "0.3.1"
 
 # Enable the per-thread RNG (with_thread_rng):
-oxicrypto-rand = { version = "0.3.0", features = ["std"] }
+oxicrypto-rand = { version = "0.3.1", features = ["std"] }
 ```
 
 ## Quick Start

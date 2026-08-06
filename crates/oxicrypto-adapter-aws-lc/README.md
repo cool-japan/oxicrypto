@@ -12,7 +12,7 @@
 ```toml
 [dependencies]
 # Types are only compiled in when the `aws-lc` feature is on.
-oxicrypto-adapter-aws-lc = { version = "0.3.0", features = ["aws-lc"] }
+oxicrypto-adapter-aws-lc = { version = "0.3.1", features = ["aws-lc"] }
 ```
 
 From **oxicrypto 0.2.0**, the `aws-lc` feature is no longer available on the `oxicrypto` facade. Depend on this adapter crate directly instead of going via the facade.

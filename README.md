@@ -58,10 +58,10 @@ with **default features** (2026-08-06) — see the Validation matrix note above.
 
 ```toml
 [dependencies]
-oxicrypto = "0.3.0"
+oxicrypto = "0.3.1"
 
 # Post-quantum primitives (off by default):
-oxicrypto = { version = "0.3.0", features = ["pq-preview"] }
+oxicrypto = { version = "0.3.1", features = ["pq-preview"] }
 ```
 
 ### Hash
@@ -168,10 +168,10 @@ From **0.2.0**, the `aws-lc` and `pkcs11` features are no longer part of the `ox
 
 ```toml
 # FIPS / aws-lc-rs backend (C/FFI, not Pure Rust)
-oxicrypto-adapter-aws-lc = { version = "0.3.0", features = ["aws-lc"] }
+oxicrypto-adapter-aws-lc = { version = "0.3.1", features = ["aws-lc"] }
 
 # PKCS#11 HSM backend (C/FFI, not Pure Rust)
-oxicrypto-adapter-pkcs11 = { version = "0.3.0", features = ["pkcs11"] }
+oxicrypto-adapter-pkcs11 = { version = "0.3.1", features = ["pkcs11"] }
 ```
 
 ## Replaces (FFI being eliminated)

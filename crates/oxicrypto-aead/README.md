@@ -11,12 +11,12 @@ The crate is **Pure Rust** with `#![forbid(unsafe_code)]`, built on the RustCryp
 
 ```toml
 [dependencies]
-oxicrypto-aead = "0.3.0"
+oxicrypto-aead = "0.3.1"
 ```
 
 ```toml
 # Inherit std from oxicrypto-core
-oxicrypto-aead = { version = "0.3.0", features = ["std"] }
+oxicrypto-aead = { version = "0.3.1", features = ["std"] }
 ```
 
 ## Quick Start

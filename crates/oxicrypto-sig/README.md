@@ -11,7 +11,7 @@ The crate is Pure Rust (`#![forbid(unsafe_code)]`), building on `ed25519-dalek`,
 
 ```toml
 [dependencies]
-oxicrypto-sig = "0.3.0"
+oxicrypto-sig = "0.3.1"
 ```
 
 ## Quick Start

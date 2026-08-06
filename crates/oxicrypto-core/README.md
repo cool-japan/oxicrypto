@@ -11,12 +11,12 @@ The crate is **Pure Rust** and `#![no_std]` (with `alloc`) — it pulls in only 
 
 ```toml
 [dependencies]
-oxicrypto-core = "0.3.0"
+oxicrypto-core = "0.3.1"
 ```
 
 ```toml
 # Enable std integrations (e.g. `From<CryptoError> for std::io::Error`)
-oxicrypto-core = { version = "0.3.0", features = ["std"] }
+oxicrypto-core = { version = "0.3.1", features = ["std"] }
 ```
 
 ## Quick Start
