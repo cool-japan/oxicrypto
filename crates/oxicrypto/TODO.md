@@ -1,7 +1,7 @@
 # oxicrypto (facade) TODO
 
 ## Status
-Facade crate (~1,519 SLOC across lib.rs, version.rs, and algo/{aead,hash,kdf,kex,mac,pq,sig}.rs, plus 1,001 SLOC of tests in src/tests.rs — tokei, 2026-07-17). Re-exports all subcrate types and provides algorithm selector enums (`HashAlgo` 11 variants, `AeadAlgo` 11, `MacAlgo` 10, `SigAlgo` 12, `KexAlgo` 5, `KdfAlgo` 8; plus `PqKemAlgo` 5 and `PqSigAlgo` 13 under `pq-preview`) with factory functions returning boxed trait objects. Features: `pure` (default-on, all algorithms), `simd` (CPU feature detection), `pq-preview` (ML-KEM/ML-DSA/SLH-DSA/X-Wing/hybrid KEMs). As of 0.2.0, the `aws-lc` and `pkcs11` features have been removed from the facade. `cargo nextest run -p oxicrypto`: 99 passed (default features); `--all-features`: 116 passed (2026-07-17).
+Facade crate (~1,519 SLOC across lib.rs, version.rs, and algo/{aead,hash,kdf,kex,mac,pq,sig}.rs, plus 1,001 SLOC of tests in src/tests.rs — tokei, 2026-07-17). Re-exports all subcrate types and provides algorithm selector enums (`HashAlgo` 11 variants, `AeadAlgo` 11, `MacAlgo` 10, `SigAlgo` 12, `KexAlgo` 5, `KdfAlgo` 8; plus `PqKemAlgo` 5 and `PqSigAlgo` 13 under `pq-preview`) with factory functions returning boxed trait objects. Features: `pure` (default-on, all algorithms), `simd` (CPU feature detection), `pq-preview` (ML-KEM/ML-DSA/SLH-DSA/X-Wing/hybrid KEMs). As of 0.2.0, the `aws-lc` and `pkcs11` features have been removed from the facade. `cargo nextest run -p oxicrypto`: 100 passed (default features, 2026-08-06).
 
 ## Core Implementation
 - [x] Expand `SigAlgo` enum with all implemented algorithms: `Ed448`, `EcdsaP256`, `EcdsaP384`, `EcdsaP521`, `RsaPkcs1v15Sha256`, `RsaPkcs1v15Sha384`, `RsaPkcs1v15Sha512`, `RsaPssSha256` (~20 SLOC)

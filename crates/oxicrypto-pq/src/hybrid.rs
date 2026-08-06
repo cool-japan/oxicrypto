@@ -455,14 +455,22 @@ impl PqKeyShare {
     }
 
     /// Encode to wire format: `group_id(2) || length(2) || payload`.
-    pub fn to_wire(&self) -> Vec<u8> {
+    ///
+    /// Returns [`CryptoError::Encoding`] if `self.payload` is longer than
+    /// `u16::MAX` bytes, since the wire length field cannot represent it.
+    /// Every group currently defined by [`PqGroup`] has a payload well
+    /// under this bound (see [`Self::expected_encap_key_len`]), so this is
+    /// only reachable via [`Self::encode_encap_key`]/[`Self::encode_ciphertext`]
+    /// called with an oversized caller-supplied byte slice.
+    pub fn to_wire(&self) -> Result<Vec<u8>, CryptoError> {
         let len = self.payload.len();
+        let len_u16 = u16::try_from(len).map_err(|_| CryptoError::Encoding)?;
         let mut out = Vec::with_capacity(4 + len);
         let gid = self.group as u16;
         out.extend_from_slice(&gid.to_be_bytes());
-        out.extend_from_slice(&(len as u16).to_be_bytes());
+        out.extend_from_slice(&len_u16.to_be_bytes());
         out.extend_from_slice(&self.payload);
-        out
+        Ok(out)
     }
 
     /// Decode from wire format.
@@ -623,7 +631,7 @@ mod tests {
     fn pq_key_share_encode_decode_roundtrip() {
         let payload = vec![0xABu8; 1184]; // ML-KEM-768 ek size
         let ks = PqKeyShare::encode_encap_key(PqGroup::MlKem768, &payload);
-        let wire = ks.to_wire();
+        let wire = ks.to_wire().expect("to_wire");
         assert_eq!(wire.len(), 4 + 1184);
 
         let decoded = PqKeyShare::from_wire(&wire).expect("from_wire");
@@ -642,11 +650,41 @@ mod tests {
         ];
         for (group, sz) in groups {
             let payload = vec![0x5Au8; sz];
-            let wire = PqKeyShare::encode_encap_key(group, &payload).to_wire();
+            let wire = PqKeyShare::encode_encap_key(group, &payload)
+                .to_wire()
+                .expect("to_wire");
             let decoded = PqKeyShare::from_wire(&wire).expect("from_wire");
             assert_eq!(decoded.group, group, "group mismatch for {:?}", group);
             assert_eq!(decoded.payload.len(), sz, "len mismatch for {:?}", group);
         }
+    }
+
+    #[test]
+    fn pq_key_share_to_wire_oversized_payload_rejected() {
+        // A payload over u16::MAX bytes cannot be represented by the 2-byte
+        // wire length field; `to_wire` must reject it instead of silently
+        // truncating `len as u16` (which would wrap and desync the framing).
+        let payload = vec![0u8; usize::from(u16::MAX) + 1];
+        let ks = PqKeyShare::encode_encap_key(PqGroup::MlKem768, &payload);
+        let result = ks.to_wire();
+        assert!(
+            result.is_err(),
+            "payload of {} bytes must be rejected, not silently truncated",
+            payload.len()
+        );
+        assert_eq!(result.unwrap_err(), CryptoError::Encoding);
+    }
+
+    #[test]
+    fn pq_key_share_to_wire_max_len_accepted() {
+        // Exactly u16::MAX bytes is the largest representable payload; it
+        // must round-trip successfully (boundary check, not off-by-one).
+        let payload = vec![0x11u8; usize::from(u16::MAX)];
+        let ks = PqKeyShare::encode_encap_key(PqGroup::MlKem512, &payload);
+        let wire = ks.to_wire().expect("max-length payload must be accepted");
+        assert_eq!(wire.len(), 4 + payload.len());
+        let decoded = PqKeyShare::from_wire(&wire).expect("from_wire");
+        assert_eq!(decoded.payload, payload);
     }
 
     #[test]

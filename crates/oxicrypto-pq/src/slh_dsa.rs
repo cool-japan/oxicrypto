@@ -1,6 +1,6 @@
 //! SLH-DSA (FIPS 205) stateless hash-based digital signatures.
 //!
-//! Implements ten of the twelve FIPS 205 parameter sets using the `slh-dsa` crate.
+//! Implements all twelve FIPS 205 parameter sets using the `slh-dsa` crate.
 //! Deterministic signing (`try_sign`) is used throughout, which is safe for
 //! stateless hash-based signatures.
 //!
@@ -14,6 +14,8 @@
 //! | [`SlhDsaSha2_256f`] | SLH-DSA-SHA2-256f | 128 | 64 | 49 856 |
 //! | [`SlhDsaShake128s`] | SLH-DSA-SHAKE-128s | 64 | 32 | 7 856 |
 //! | [`SlhDsaShake128f`] | SLH-DSA-SHAKE-128f | 64 | 32 | 17 088 |
+//! | [`SlhDsaShake192s`] | SLH-DSA-SHAKE-192s | 96 | 48 | 16 224 |
+//! | [`SlhDsaShake192f`] | SLH-DSA-SHAKE-192f | 96 | 48 | 35 664 |
 //! | [`SlhDsaShake256s`] | SLH-DSA-SHAKE-256s | 128 | 64 | 29 792 |
 //! | [`SlhDsaShake256f`] | SLH-DSA-SHAKE-256f | 128 | 64 | 49 856 |
 //!
@@ -35,7 +37,7 @@ use rand_core::CryptoRng;
 use slh_dsa::signature::{Keypair, Signer as SlhSigner, Verifier as SlhVerifier};
 use slh_dsa::{
     Sha2_128f, Sha2_128s, Sha2_192f, Sha2_192s, Sha2_256f, Sha2_256s, Shake128f, Shake128s,
-    Shake256f, Shake256s, SigningKey, VerifyingKey,
+    Shake192f, Shake192s, Shake256f, Shake256s, SigningKey, VerifyingKey,
 };
 use zeroize::ZeroizeOnDrop;
 
@@ -84,6 +86,20 @@ pub const SLH_DSA_SHAKE_128F_SK_LEN: usize = 64;
 pub const SLH_DSA_SHAKE_128F_VK_LEN: usize = 32;
 /// SLH-DSA-SHAKE-128f signature byte length.
 pub const SLH_DSA_SHAKE_128F_SIG_LEN: usize = 17088;
+
+/// SLH-DSA-SHAKE-192s signing key byte length (FIPS 205, category 3).
+pub const SLH_DSA_SHAKE_192S_SK_LEN: usize = 96;
+/// SLH-DSA-SHAKE-192s verifying key byte length.
+pub const SLH_DSA_SHAKE_192S_VK_LEN: usize = 48;
+/// SLH-DSA-SHAKE-192s signature byte length.
+pub const SLH_DSA_SHAKE_192S_SIG_LEN: usize = 16224;
+
+/// SLH-DSA-SHAKE-192f signing key byte length (FIPS 205, category 3).
+pub const SLH_DSA_SHAKE_192F_SK_LEN: usize = 96;
+/// SLH-DSA-SHAKE-192f verifying key byte length.
+pub const SLH_DSA_SHAKE_192F_VK_LEN: usize = 48;
+/// SLH-DSA-SHAKE-192f signature byte length.
+pub const SLH_DSA_SHAKE_192F_SIG_LEN: usize = 35664;
 
 /// SLH-DSA-SHA2-192s signing key byte length (FIPS 205, category 3).
 pub const SLH_DSA_SHA2_192S_SK_LEN: usize = 96;
@@ -360,6 +376,30 @@ impl_slh_dsa_param! {
     vk_len  = SLH_DSA_SHAKE_128F_VK_LEN,
     sig_len = SLH_DSA_SHAKE_128F_SIG_LEN,
     name    = "SLH-DSA-SHAKE-128f",
+}
+
+impl_slh_dsa_param! {
+    unit    = SlhDsaShake192s,
+    sk      = SlhDsaSigningKeyShake192s,
+    vk      = SlhDsaVerifyingKeyShake192s,
+    sig     = SlhDsaSignatureShake192s,
+    params  = Shake192s,
+    sk_len  = SLH_DSA_SHAKE_192S_SK_LEN,
+    vk_len  = SLH_DSA_SHAKE_192S_VK_LEN,
+    sig_len = SLH_DSA_SHAKE_192S_SIG_LEN,
+    name    = "SLH-DSA-SHAKE-192s",
+}
+
+impl_slh_dsa_param! {
+    unit    = SlhDsaShake192f,
+    sk      = SlhDsaSigningKeyShake192f,
+    vk      = SlhDsaVerifyingKeyShake192f,
+    sig     = SlhDsaSignatureShake192f,
+    params  = Shake192f,
+    sk_len  = SLH_DSA_SHAKE_192F_SK_LEN,
+    vk_len  = SLH_DSA_SHAKE_192F_VK_LEN,
+    sig_len = SLH_DSA_SHAKE_192F_SIG_LEN,
+    name    = "SLH-DSA-SHAKE-192f",
 }
 
 impl_slh_dsa_param! {
@@ -961,6 +1001,75 @@ mod tests {
                     vk.to_bytes().len(),
                     SLH_DSA_SHAKE_256F_VK_LEN,
                     "SHAKE-256f VK size"
+                );
+            })
+            .expect("thread spawn failed")
+            .join()
+            .expect("thread panicked");
+    }
+
+    // ── SHAKE-192s / SHAKE-192f (category 3) — the two newly added sets ───────
+
+    #[test]
+    fn test_slh_dsa_shake_192s_key_sizes() {
+        std::thread::Builder::new()
+            .stack_size(16 * 1024 * 1024)
+            .spawn(|| {
+                let mut rng = ChaCha20Rng::from_seed([0xB3u8; 32]);
+                let (sk, vk) = SlhDsaShake192s::generate(&mut rng);
+                assert_eq!(
+                    sk.to_bytes().len(),
+                    SLH_DSA_SHAKE_192S_SK_LEN,
+                    "SHAKE-192s SK size"
+                );
+                assert_eq!(
+                    vk.to_bytes().len(),
+                    SLH_DSA_SHAKE_192S_VK_LEN,
+                    "SHAKE-192s VK size"
+                );
+            })
+            .expect("thread spawn failed")
+            .join()
+            .expect("thread panicked");
+    }
+
+    #[test]
+    fn test_slh_dsa_shake_192f_key_sizes() {
+        std::thread::Builder::new()
+            .stack_size(16 * 1024 * 1024)
+            .spawn(|| {
+                let mut rng = ChaCha20Rng::from_seed([0xB4u8; 32]);
+                let (sk, vk) = SlhDsaShake192f::generate(&mut rng);
+                assert_eq!(
+                    sk.to_bytes().len(),
+                    SLH_DSA_SHAKE_192F_SK_LEN,
+                    "SHAKE-192f SK size"
+                );
+                assert_eq!(
+                    vk.to_bytes().len(),
+                    SLH_DSA_SHAKE_192F_VK_LEN,
+                    "SHAKE-192f VK size"
+                );
+            })
+            .expect("thread spawn failed")
+            .join()
+            .expect("thread panicked");
+    }
+
+    #[test]
+    fn test_slh_dsa_shake_192f_round_trip() {
+        std::thread::Builder::new()
+            .stack_size(16 * 1024 * 1024)
+            .spawn(|| {
+                let mut rng = ChaCha20Rng::from_seed([0xB5u8; 32]);
+                let (sk, vk) = SlhDsaShake192f::generate(&mut rng);
+                let sig = sk.sign(TEST_MSG).expect("shake_192f sign failed");
+                vk.verify(TEST_MSG, &sig).expect("shake_192f verify failed");
+                let mut altered = TEST_MSG.to_vec();
+                altered[6] ^= 0x3C;
+                assert!(
+                    vk.verify(&altered, &sig).is_err(),
+                    "shake_192f verify should fail on altered message"
                 );
             })
             .expect("thread spawn failed")

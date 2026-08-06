@@ -1,5 +1,7 @@
 # OxiCrypto TODO
 
+**v0.3.0 released 2026-08-06 — SLH-DSA completed to all 12 FIPS 205 parameter sets (`SlhDsaShake192s`/`SlhDsaShake192f`), `negotiate_aead` TLS 1.3 cipher-suite negotiation in `oxicrypto-aead` (completing the `negotiate_mac`/`negotiate_sig`/`negotiate_kex` set), coverage-guided `cargo-fuzz` harnesses for the AEAD/MAC/PQ/KDF untrusted-input decoders (4 new fuzz crates plus a build fix for the pre-existing `oxicrypto-hash` one), runnable `examples/` for all 9 previously-example-less publishable sub-crates, workspace-root `rustfmt.toml`/`clippy.toml`, a scoped `ring` `wrappers` exception in `deny.toml` (`cargo deny check bans` now clean), `PqKeyShare::to_wire` made fallible (**breaking** — `Result<Vec<u8>, CryptoError>` instead of a silently-truncating `len as u16`), `oxicode` 0.2.4 → 0.2.6, and a security fix (`oxicrypto-kdf` bcrypt verification no longer panics on a non-ASCII hash string — a char-boundary panic-DoS on externally-sourced hashes). 1627 tests pass with default features (25 `#[ignore]`-gated), plus 26 doctests; the workspace is validated with **default features only** — the two bounded-FFI adapter crates are outside the Pure-Rust `--all-features` validation matrix.**
+
 **v0.2.1 released 2026-07-17 — ML-DSA-87 stack-safety (`stack_safe` module: `run_on_large_stack` + `mldsa87_*_stack_safe`, a measured 2 MiB worker-thread stack vs. the old hardcoded 8 MiB), genuine `core`-only builds via a new default-on `alloc` Cargo feature on `oxicrypto-core`/`oxicrypto-hash` (supersedes the old `no_std` feature; `cargo build --no-default-features` now links only `core`), a PQ→HKDF→AEAD hybrid public-key encryption integration test in the facade, the `aead` 0.5→0.6 `AeadInOut` migration (internal, non-breaking), a new `bench_arch_profile.sh` per-architecture benchmarking script, new `CONTRIBUTING.md`/`SECURITY.md` governance docs, dependency upgrades, and a security fix (`oxicrypto-mac` truncated-HMAC `verify_truncated`/`mac_truncated` now reject an oversized tag/output length with `CryptoError::BadInput` instead of panicking). 1736 tests pass (`--all-features`; 1612 with default features).**
 
 **v0.2.0 released 2026-06-22 — Quarantine closure: `aws-lc` and `pkcs11` features removed from the `oxicrypto` facade. `oxicrypto-adapter-aws-lc` and `oxicrypto-adapter-pkcs11` remain as workspace members but must be depended on directly. Default facade closure is now 100% Pure Rust (`--all-features` on `oxicrypto` pulls zero C dependencies). 1673 tests pass.**
@@ -99,6 +101,14 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 - Key-committing AEAD construction (anti-invisible-salamander)
 - Estimated new SLOC: ~750
 
+### oxicrypto-cipher (crates/oxicrypto-cipher/TODO.md)
+**Current:** 156 SLOC (tokei, 2026-08-03). **Priority:** Low — feature-complete for its stated scope.
+- Raw, unauthenticated AES-128/AES-256 single-block ECB (`aes128_encrypt_block`, `aes256_encrypt_block`) and ChaCha20 keystream (`chacha20_keystream_block`) primitives for QUIC header protection (RFC 9001 §5.4)
+- Distinct from `oxicrypto-aead`'s authenticated ciphers — deliberately narrow, no streaming/decrypt API planned (see crate `TODO.md` § Non-Goals)
+- 6 tests: FIPS-197 AES-128/AES-256 KATs, RFC 9001 §A.5 ChaCha20 header-mask KAT, RFC 8439 determinism check, invalid-length error-path coverage
+- Optional/non-blocking remaining items: fuzz target, AES-192 (not required by RFC 9001); `examples/` added 2026-08-03
+- Estimated new SLOC: ~0 (no known functional gaps for the QUIC header-protection use case)
+
 ### oxicrypto-mac (crates/oxicrypto-mac/TODO.md)
 **Current:** 1851 SLOC (was 170 at M0). **Priority:** Medium.
 - Streaming HMAC adapter
@@ -153,7 +163,7 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 
 ### oxicrypto-pq (crates/oxicrypto-pq/TODO.md)
 **Current:** 3242 SLOC (was ~606 at M0). **Priority:** Medium-High.
-- SLH-DSA (FIPS 205) parameter sets — 10 of 12 implemented (SHA2 128s/128f/192s/192f/256s/256f + SHAKE 128s/128f/256s/256f); `SlhDsaShake192s`/`SlhDsaShake192f` not yet present anywhere in `crates/oxicrypto-pq/src/` (verified by grep, 2026-07-17)
+- [x] SLH-DSA (FIPS 205) parameter sets — all 12 implemented as of 0.3.0 (SHA2 128s/128f/192s/192f/256s/256f + SHAKE 128s/128f/192s/192f/256s/256f); the final two, `SlhDsaShake192s`/`SlhDsaShake192f`, were added via the existing `impl_slh_dsa_param!` macro with length constants and key-size/sign/verify/tamper tests (2026-08-06)
 - Hybrid KEM (ML-KEM + X25519, ML-KEM + ECDH P-384)
 - PQ-TLS integration helpers
 - Key/signature serialization
@@ -184,8 +194,8 @@ Each subcrate has a detailed `TODO.md` in its directory. Below is a summary inde
 - Estimated new SLOC: ~550
 
 ### Total Estimated Backlog
-- Current total (src/ only, 11 crates tracked above, tokei 2026-07-17): ~29,869 SLOC, up from ~3,487 SLOC at M0 — already well past the original ~10,677 SLOC target.
-- Full workspace (src + tests + examples + benches, all 14 crates, tokei 2026-07-17): ~48,023 SLOC across 220 Rust files (see README.md).
+- Current total (src/ only, 12 crates tracked above — `oxicrypto-cipher` added to the index 2026-08-03, tokei 2026-07-17 for the other 11): ~29,869 SLOC (+156 for `oxicrypto-cipher`), up from ~3,487 SLOC at M0 — already well past the original ~10,677 SLOC target.
+- Full workspace (src + tests + examples + benches, all 14 crates, tokei 2026-08-06): ~48,717 SLOC across 227 Rust files, excluding the 5 nightly-only `fuzz/` crates (see README.md).
 - The per-crate estimates above are historical (M0-era) sizing guesses kept for context; most of the enumerated backlog items are now implemented (see the `[x]` markers above) and each crate's own `TODO.md` tracks current, detailed backlog status.
 
 ## Open Questions
@@ -212,3 +222,16 @@ _Consolidated from static audit + Opus adversarial bug-hunt (48 verified defects
 - Fixed: `n` is now bounded to an inclusive `16..=digest_len` range in both `mac_truncated` and `verify_truncated` for all three HMAC variants; out-of-range lengths return `CryptoError::BadInput` instead of panicking. Regression tests added in `crates/oxicrypto-mac/src/tests_inline.rs` (`hmac_sha256_truncated_oversized_rejected`, `hmac_sha512_truncated_oversized_rejected`, `hmac_sha384_truncated_oversized_rejected`, plus full-digest-length boundary cases). See `CHANGELOG.md` `[0.2.1]` § Security.
 **Designed / audit:**
 - [x] **A/med · Y2** sub-TODO triage 17 items (pq 8 / kdf 5 / aead 2 / hash 1 / bench 1) — DONE 2026-07-17. Implemented: (b) ML-DSA-87 stack measured + `stack_safe` mitigation (2 MiB, was 8); (c) genuine alloc-free path via new `alloc` feature on `oxicrypto-core` + `oxicrypto-hash` (`--no-default-features` = core-only, `tests/no_alloc.rs`); (d) PQ→HKDF→AEAD hybrid-encryption integration test in the facade (closes the pq/kdf + pq/aead + aead/pq coordination items with one non-cyclic deliverable); bench `bench_arch_profile.sh` records the native aarch64/NEON baseline (x86_64/AES-NI leg documented as CI deferral). RC/version-gate re-check under Latest policy: `ml-kem 0.3.2` / `ml-dsa 0.1.1` / `argon2 0.6.0-rc.8` / `slh-dsa 0.2.0-rc.5` are all already the newest crates.io releases — no bump possible. Remaining items are genuine upstream/cross-crate deferrals (pq-preview 1.0 graduation, ML-KEM keygen heap profiling, composite sigs, OxiTLS negotiation) documented precisely in each sub-crate TODO.
+
+<!-- production-readiness-backlog-wave3 2026-08-03 -->
+## Production-Readiness Backlog — Wave 3 (hygiene/infrastructure) — 2026-08-03
+
+_Wave 3 of the 2026-08 production push (see `../NOFFI_PRODUCTION_BACKLOG.md`); scope = every `severity:"B"` item with `difficulty:"easy"`/`"med"` from the oxicrypto audit's `remaining_work`/`new_findings`. Built on top of prior-wave changes already present in the working tree at the start of this wave (bcrypt ASCII-boundary fix, SLH-DSA Shake192s/f, `negotiate_aead`) — see `CHANGELOG.md` `[0.3.0]` for the consolidated, dated summary of all of it. Deferred: the bcrypt panic (S), SLH-DSA gap (A), and `negotiate_aead` gap (A) findings were already resolved in the working tree before this wave started — see backlog_verification; the SLH-DSA and `negotiate_aead` root-TODO/per-crate-TODO entries above already reflect that. No B-difficulty-hard items existed in this wave's scope._
+
+- [x] **B/easy** rustfmt.toml + clippy.toml at the workspace root — added; `cargo fmt --check` passes clean across the whole repo (verified: default-adjacent settings needed only a handful of line-wrap fixes in newly-added files, zero reformatting of pre-existing source); `clippy.toml` sets `msrv = "1.89"` matching `Cargo.toml`.
+- [x] **B/easy** `deny.toml` bans `ring`/`aws-lc-rs` but `oxicrypto-bench` dev-depends on `ring` — confirmed empirically (`cargo deny check bans` failed with exactly one `error[banned]: crate 'ring = 0.17.14'` via `(dev) oxicrypto-bench`, no `aws-lc-rs` hit since cargo-deny doesn't enable non-default features). Fixed with a scoped `wrappers = ["oxicrypto-bench"]` exception on the `ring` ban entry (not a blanket `skip`, which in cargo-deny 0.19 only affects multiple-versions detection, not the `deny` list — verified via `cargo deny init`'s generated template). `cargo deny check bans` now reports `bans ok`.
+- [x] **B/med** Fuzz targets existed only for `oxicrypto-hash` — added 4 new `fuzz/` crates (`oxicrypto-aead` ×2 targets, `oxicrypto-mac`, `oxicrypto-pq`, `oxicrypto-kdf`) covering the untrusted wire/string decoders named in the finding (`open_box`, AES key unwrap, HMAC truncated mac/verify, `PqKeyShare::from_wire`, `bcrypt_verify`). Discovered and fixed along the way: `oxicrypto-hash`'s pre-existing fuzz crate was not actually buildable (`cargo metadata` from inside it errored — missing the standard cargo-fuzz `[workspace]` isolation table); all 5 fuzz crates (1 existing + 4 new) build and were smoke-tested with `cargo +nightly fuzz run` (tens of thousands to 1M+ iterations each), zero crashes. `.gitignore`'s `fuzz/corpus/`/`fuzz/artifacts/` patterns were anchored to the repo root and silently didn't cover the new nested `crates/*/fuzz/` dirs — widened to `**/fuzz/{corpus,artifacts,coverage}/`.
+- [x] **B/easy** `examples/` existed only in the `oxicrypto` facade crate — added one real, `cargo run`-verified example to each of the 9 other publishable sub-crates (`oxicrypto-aead`, `-cipher`, `-hash`, `-kdf`, `-kex`, `-mac`, `-pq`, `-rand`, `-sig`). Deliberately excluded `oxicrypto-adapter-aws-lc`/`-adapter-pkcs11` per the KNOWN-BROKEN `--all-features` caveat.
+- [x] **B/easy** `oxicrypto-cipher` was the only member crate without a `TODO.md` and without a root-`TODO.md` index entry — both added (see `crates/oxicrypto-cipher/TODO.md`); no functional gap found (the crate's 3-function QUIC header-protection API was already complete with FIPS-197/RFC 9001/RFC 8439 KAT coverage).
+- [x] **B/easy** `PqKeyShare::to_wire` silently truncated the length field via `len as u16` for a payload over 65535 bytes — made fallible (`Result<Vec<u8>, CryptoError>`, breaking on 0.3.0), rejecting the oversized case instead of wrapping; new tests cover both the rejection and the `u16::MAX` boundary (accepted). Unreachable via any of the 5 currently-defined `PqGroup` values, but the encode helpers accept arbitrary caller byte slices.
+- Verification (wave-3 snapshot, 2026-08-03 — superseded by the 0.3.0 release figures at the top of this file): `cargo build --workspace --all-targets` (excl. the 2 known-broken adapters), `cargo nextest run --workspace` (same exclusion) → 1626 passed / 25 skipped / 0 failed, `cargo clippy --workspace --all-targets -- -D warnings` → zero warnings, `cargo fmt --check` → clean, `cargo deny check bans` → `bans ok`. All four ran on top of, not instead of, the prior-wave changes already in the tree.

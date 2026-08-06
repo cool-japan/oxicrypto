@@ -4,6 +4,32 @@ All notable changes to OxiCrypto are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-08-06
+
+### Added
+
+- **SLH-DSA: final 2 FIPS 205 parameter sets** (oxicrypto-pq) — `SlhDsaShake192s`/`SlhDsaShake192f` (security category 3, SHAKE), completing all 12 FIPS 205 parameter sets (previously 10 of 12; `Shake192s`/`Shake192f` were available in the pinned `slh-dsa 0.2.0-rc.5` dependency but not yet wired up). Added via the existing `impl_slh_dsa_param!` macro, with SK/VK/signature length constants and key-size + sign/verify/tamper tests.
+- **`negotiate_aead` TLS 1.3 cipher-suite negotiation** (oxicrypto-aead) — new `src/tls.rs`: `TlsCipherSuite` (5 TLS 1.3 suites, RFC 8446 §B.4), `from_iana_name`/`wire_code`, `aead_name_for_suite`, and `negotiate_aead(suite) -> Result<Box<dyn Aead>, CryptoError>`. Mirrors the `negotiate_mac`/`negotiate_sig`/`negotiate_kex` pattern already shipped in `oxicrypto-mac`/`oxicrypto-sig`/`oxicrypto-kex` — no `OxiTLS` dependency needed, so the "requires OxiTLS crate coordination" deferral on this item did not hold.
+- **Coverage-guided `cargo-fuzz` harnesses** for the AEAD/MAC/PQ/KDF untrusted-input decoders that previously had none (`oxicrypto-hash` was the only crate with a `fuzz/` directory): `oxicrypto-aead` (`fuzz_sealed_box_open_no_panic` for `open_box`, `fuzz_key_unwrap_no_panic` for the RFC 3394 `aes{128,256}_key_unwrap`), `oxicrypto-mac` (`fuzz_hmac_truncated_no_panic`, exercising `verify_truncated`/`mac_truncated` on all three HMAC-SHA-2 variants — a direct regression guard for the truncated-HMAC panics fixed in 0.2.1), `oxicrypto-pq` (`fuzz_pq_key_share_from_wire`, exercising `PqKeyShare::from_wire` plus a decode/re-encode round-trip invariant), and `oxicrypto-kdf` (`fuzz_bcrypt_verify_no_panic`, a direct regression guard for the bcrypt char-boundary panic fixed below). Each new `fuzz/Cargo.toml` carries its own `[workspace]` table so these nightly-only, `libfuzzer-sys`-dependent crates stay out of the parent workspace's normal `cargo build`/`cargo test`. In the course of adding these, discovered and fixed that `oxicrypto-hash`'s pre-existing `fuzz/` crate was itself not actually buildable — `cargo metadata`/`cargo build` from inside it failed with "current package believes it's in a workspace when it's not" for lack of that same `[workspace]` table; all five fuzz crates (existing + 4 new) now build and were smoke-tested (tens of thousands to 1M+ iterations each, `cargo +nightly fuzz run`) with zero crashes.
+- **Runnable `examples/`** for all 9 previously-example-less publishable sub-crates — `oxicrypto-aead`, `-cipher`, `-hash`, `-kdf`, `-kex`, `-mac`, `-pq`, `-rand`, `-sig` (previously only the `oxicrypto` facade crate had any). Each example is a real, `cargo run -p <crate> --example <name>`-verified walkthrough of that crate's headline API (e.g. AES-256-GCM/ChaCha20-Poly1305 seal+open with tamper detection, Ed25519/ECDSA-P256 sign+verify, X25519 key agreement into an HKDF-derived session key, ML-KEM-768 encapsulation + ML-DSA-65 signing, HKDF + bcrypt, HMAC + BLAKE3-keyed MAC, CSPRNG usage, one-shot vs. streaming hashing, and QUIC header protection per RFC 9001 §5.4). `oxicrypto-hash`'s example additionally builds under `--no-default-features` (alloc-free).
+- **`rustfmt.toml` / `clippy.toml`** at the workspace root — pin formatting/lint configuration instead of inheriting whatever toolchain defaults happen to be active (`cargo fmt --check` already passed against the codebase's existing style; these files make that pinned rather than incidental). `clippy.toml` sets `msrv = "1.89"` to match `Cargo.toml`'s `rust-version`.
+- **`crates/oxicrypto-cipher/TODO.md`** — this was the only one of 14 member crates without a tracked per-crate backlog file (and was missing from the root `TODO.md`'s per-crate index); both are now present. The crate itself needed no functional changes — its 3-function QUIC header-protection API was already complete and fully tested.
+
+### Changed
+
+- **`PqKeyShare::to_wire` is now fallible** (oxicrypto-pq, **breaking**) — returns `Result<Vec<u8>, CryptoError>` instead of `Vec<u8>`, returning `Err(CryptoError::Encoding)` for a payload longer than `u16::MAX` bytes instead of silently truncating the 2-byte wire length field via `len as u16` (which would wrap and desync the TLS 1.3 `key_share` frame for any consumer of the encoded bytes). Unreachable via any of the five currently-defined `PqGroup` values (the largest, `HybridMlKem1024P384`, is 1617 bytes), but `encode_encap_key`/`encode_ciphertext` accept arbitrary caller-supplied byte slices, so the bound is not guaranteed by the type system. New tests cover both the rejection and the `u16::MAX` boundary (accepted).
+- **`deny.toml`**: the `ring` ban now carries a scoped `wrappers = ["oxicrypto-bench"]` exception (with a `reason`) instead of banning it unconditionally. `oxicrypto-bench` dev-depends on `ring` for its comparative benchmarks — a deliberate, dev-only edge that `cargo deny check bans` was nonetheless failing on, since `ring` is otherwise correctly banned workspace-wide. `cargo deny check bans` now passes; `aws-lc-rs` (also banned) does not appear in the default-feature dependency graph cargo-deny evaluates, so it needed no equivalent exception.
+- **`.gitignore`**: `fuzz/corpus/`/`fuzz/artifacts/` widened to `**/fuzz/corpus/`/`**/fuzz/artifacts/` (plus a new `**/fuzz/coverage/`) — the previous pattern (a path containing a slash) is anchored to the repo root and only matched a top-level `fuzz/` directory, which doesn't exist; the workspace now has a `fuzz/` under five `crates/*/` directories.
+- **Dependency upgrades** (workspace) — `oxicode` 0.2.4 → 0.2.5 → 0.2.6.
+
+### Fixed
+
+- **Broken intra-doc link in `oxicrypto-aead`'s new `tls` module** — the module-level doc comment used rustdoc intra-doc-link syntax for `oxicrypto_mac::negotiate_mac`, a crate `oxicrypto-aead` does not depend on, so `RUSTDOCFLAGS="-D warnings" cargo doc` failed with `unresolved link`. Demoted to a plain code span, matching the adjacent `oxicrypto_sig::negotiate_sig` / `oxicrypto_kex::negotiate_kex` references on the following lines.
+
+### Security
+
+- **Non-ASCII bcrypt hash string caused a byte/char-boundary panic** (oxicrypto-kdf) — `bcrypt_verify`/`parse_bcrypt_string`/`extract_hash_part` validated only the *byte* length of a hash string before indexing it as `&str` (e.g. `&hash_part[..22]`); a multi-byte UTF-8 character straddling one of those byte offsets panicked with "byte index N is not a char boundary" instead of returning an error — a panic-DoS on any path that verifies a bcrypt hash sourced from outside the process (e.g. read from a database). Fixed with an ASCII gate (`ensure_ascii_hash`, justified because the bcrypt modular-crypt format and its base64 alphabet are ASCII-only by definition) enforced independently in all three functions, so none depends on call order. New regression tests cover the exact repro (`$2b$04$` + 21 ASCII + `'é'` + 30 ASCII), a sweep of a 2-byte character across every byte offset of an otherwise-valid hash string, and a 4-byte emoji case.
+
 ## [0.2.1] - 2026-07-17
 
 ### Added
@@ -213,6 +239,7 @@ versions in `Cargo.toml`. No custom cryptographic primitives are written.
 The default feature set is 100% Pure Rust with zero `*-sys` crates.
 Bounded FFI adapters (aws-lc, pkcs11) are strictly feature-gated.
 
+[0.3.0]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.3.0
 [0.2.1]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.2.1
 [0.2.0]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.2.0
 [0.1.3]: https://github.com/cool-japan/oxicrypto/releases/tag/v0.1.3

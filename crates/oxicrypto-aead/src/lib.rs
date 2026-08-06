@@ -92,6 +92,7 @@ pub mod nonce_types;
 pub mod ocb3_impl;
 pub mod sealed_box;
 pub mod stream;
+pub mod tls;
 pub mod xchacha20;
 
 pub use aes_gcm_siv::{AesGcmSiv128, AesGcmSiv256};
@@ -105,6 +106,7 @@ pub use nonce_types::{Nonce12Bytes, Nonce24Bytes, NonceBytes};
 pub use ocb3_impl::{Aes128Ocb3, Aes256Ocb3};
 pub use sealed_box::{open_box, seal_box};
 pub use stream::{Aes256GcmStream, ChaCha20Poly1305Stream};
+pub use tls::{aead_name_for_suite, negotiate_aead, TlsCipherSuite};
 pub use xchacha20::XChaCha20Poly1305;
 
 // ── Random-nonce helper ───────────────────────────────────────────────────────

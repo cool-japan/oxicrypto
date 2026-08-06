@@ -1,6 +1,10 @@
 [bans]
 deny = [
-    { name = "ring" },
+    # `ring` stays banned everywhere except as a *direct dev-dependency* of
+    # oxicrypto-bench, which benchmarks oxicrypto's AEAD/hash primitives
+    # against RustCrypto's `ring`-backed baselines. It never reaches any
+    # non-dev, non-benchmark build.
+    { name = "ring", wrappers = ["oxicrypto-bench"], reason = "dev-only benchmark baseline in oxicrypto-bench; never a production/runtime dependency" },
     { name = "aws-lc-rs" },
     { name = "openssl-sys" },
     { name = "openssl" },

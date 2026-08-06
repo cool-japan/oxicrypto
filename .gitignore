@@ -88,8 +88,13 @@ massif.out.*
 # ==============================================================
 # Fuzzing (cargo-fuzz)
 # ==============================================================
-fuzz/corpus/
-fuzz/artifacts/
+# Leading `**/` makes these match at any depth: the workspace now has a
+# `fuzz/` directory under several crates/*/ (each its own standalone
+# cargo-fuzz workspace), not just a single top-level one, so an anchored
+# `fuzz/corpus/` would only match a repo-root fuzz dir that doesn't exist.
+**/fuzz/corpus/
+**/fuzz/artifacts/
+**/fuzz/coverage/
 
 # ==============================================================
 # Claude AI worktrees

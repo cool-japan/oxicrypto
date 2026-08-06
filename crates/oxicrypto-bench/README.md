@@ -15,7 +15,7 @@ This crate is not published for downstream use; it is built from within the work
 # oxicrypto-bench is a workspace-internal dev crate; it is not added as a
 # dependency. The line below is shown only for completeness.
 [dev-dependencies]
-oxicrypto-bench = "0.2.1"
+oxicrypto-bench = "0.3.0"
 ```
 
 ## Quick Start

@@ -129,6 +129,7 @@ Eleven AEAD algorithms implemented. Covers AES-128-GCM, AES-256-GCM (NIST SP 800
   - **Goal:** Property test: seal(open(ct)) == ct for random inputs. **Files:** `tests/` new test file. **Risk:** Low.
 - [x] Fuzz test: open() never panics on random ciphertext (returns InvalidTag gracefully) (done 2026-06-03)
   - **Goal:** Fuzz test: open() never panics on random ciphertext (returns InvalidTag gracefully). **Files:** `tests/` new test file. **Risk:** Low.
+- [x] Coverage-guided `cargo-fuzz` harness (added 2026-08): `fuzz/fuzz_targets/fuzz_sealed_box_open_no_panic.rs` (arbitrary `open_box` sealed-box bytes) and `fuzz/fuzz_targets/fuzz_key_unwrap_no_panic.rs` (arbitrary RFC 3394 `aes{128,256}_key_unwrap` wrapped bytes). Run with `cargo +nightly fuzz run <target>` from `crates/oxicrypto-aead/fuzz/`; both smoke-tested 100k+ iterations with zero crashes.
 
 ## Performance
 All performance items implemented in `oxicrypto-bench/benches/aead.rs` (done 2026-06-19):
@@ -142,6 +143,6 @@ All performance items implemented in `oxicrypto-bench/benches/aead.rs` (done 202
 ## Integration
 - [x] Wire `NonceSequence` to `oxicrypto-rand` for automatic random nonce generation (done 2026-06-03 — `NonceSequence::with_random_prefix()` added behind the `rand` feature; generates a cryptographically-secure random prefix via `OxiRng`; 3 tests in `nonce_seq.rs`)
 - [x] Ensure `oxicrypto-kdf` HKDF can be used for AEAD key derivation (HKDF-Expand -> AEAD key) (done 2026-06-03 — `tests/test_hkdf_aead_integration.rs` validates the pattern: shared-secret → HKDF-SHA-256 → AES-128/256-GCM / ChaCha20-Poly1305 / XChaCha20-Poly1305; 7 tests; documented in `lib.rs` crate-level doc)
-- [ ] Provide AEAD algorithm negotiation for OxiTLS: `negotiate_aead(cipher_suite) -> Box<dyn Aead>` (DEFERRED — requires OxiTLS crate coordination)
+- [x] Provide AEAD algorithm negotiation for OxiTLS: `negotiate_aead(cipher_suite) -> Box<dyn Aead>` (done 2026-08-03 — `src/tls.rs`: `TlsCipherSuite` (5 TLS 1.3 suites, RFC 8446 §B.4), `from_iana_name`/`wire_code`, `aead_name_for_suite`, and `negotiate_aead` returning a boxed `Aead` for GCM/ChaCha/CCM suites and a typed `CryptoError::UnsupportedAlgorithm` for the unimplemented 8-byte-tag `AES_128_CCM_8`. Mirrors `oxicrypto-mac::negotiate_mac` — no OxiTLS dependency needed; 6 unit tests incl. negotiated seal/open round-trip)
 - [x] Ensure `oxicrypto-bench` includes AES-GCM-SIV and XChaCha20 in comparative benchmarks (done 2026-06-19 — `bench_aead_siv_vs_gcm` and `bench_xchacha_vs_chacha` groups added)
 - [x] Coordinate with `oxicrypto-pq` for hybrid encryption: ML-KEM shared secret -> HKDF -> AEAD key — DONE 2026-07-17. End-to-end KEM-DEM test in `oxicrypto/tests/pq_hybrid_encryption.rs` (facade crate, run with `--features pq-preview`): ML-KEM-768 / X-Wing encapsulate -> HKDF-SHA-256 -> AES-256-GCM (`aead_impl(AeadAlgo::Aes256Gcm)`) seal/open; tampered ciphertext -> `InvalidTag`. Wired in the facade to avoid inverting the aead<-pq dependency edge.

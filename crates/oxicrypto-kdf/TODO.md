@@ -1,7 +1,7 @@
 # oxicrypto-kdf TODO
 
 ## Status
-HKDF (SHA-256/384/512, plus split HKDF-Extract/HKDF-Expand and HKDF-Expand-Label for TLS 1.3/QUIC) and KBKDF SP 800-108 counter mode (SHA-256/384/512) implemented. Password hashing / key stretching: PBKDF2 (SHA-256/512), Argon2id/Argon2d/Argon2i, scrypt, Balloon (SHA-256/512, ASIACRYPT 2016), and a from-scratch OpenBSD-compatible bcrypt (`$2b$`) — each behind the `PasswordHash` trait, plus a runtime `KeyStretcher` abstraction (Argon2id/scrypt/PBKDF2-SHA-256/Balloon-SHA-256) and constant-time `verify_password`. Derived key material wrapped in `SecretVec` where applicable. 229 tests passing (plus one `#[ignore]`-gated ~1 GiB RFC 7914 scrypt vector), zero clippy warnings. Note: upstream dep `argon2 0.6.0-rc.8` remains a release candidate as of 2026-07-17 (see Integration section).
+HKDF (SHA-256/384/512, plus split HKDF-Extract/HKDF-Expand and HKDF-Expand-Label for TLS 1.3/QUIC) and KBKDF SP 800-108 counter mode (SHA-256/384/512) implemented. Password hashing / key stretching: PBKDF2 (SHA-256/512), Argon2id/Argon2d/Argon2i, scrypt, Balloon (SHA-256/512, ASIACRYPT 2016), and a from-scratch OpenBSD-compatible bcrypt (`$2b$`) — each behind the `PasswordHash` trait, plus a runtime `KeyStretcher` abstraction (Argon2id/scrypt/PBKDF2-SHA-256/Balloon-SHA-256) and constant-time `verify_password`. Derived key material wrapped in `SecretVec` where applicable. 233 tests passing (plus one `#[ignore]`-gated ~1 GiB RFC 7914 scrypt vector), zero clippy warnings. Note: upstream dep `argon2 0.6.0-rc.8` remains a release candidate as of 2026-07-17 (see Integration section).
 
 ## Core Implementation
 - [x] Add HKDF-Extract-only and HKDF-Expand-only standalone functions per RFC 5869 Section 2 for protocols that need separated extract/expand phases (TLS 1.3 key schedule) (~40 SLOC)
@@ -98,7 +98,8 @@ HKDF (SHA-256/384/512, plus split HKDF-Extract/HKDF-Expand and HKDF-Expand-Label
 - [x] Test: scrypt with invalid parameters (log_n > 63, p * r overflow) returns error (done 2026-06-03)
 - [x] Property test: all KDFs are deterministic — same inputs always produce same output (done 2026-06-03)
 - [x] Property test: different salts produce different outputs for same password (done 2026-06-03)
-- [x] Fuzz test: no KDF panics on arbitrary parameter combinations (done 2026-06-03 — `tests/prop_kdf.rs` has structured fuzz tests `fuzz_hkdf_{sha256,sha384,sha512}_no_panic`, `fuzz_pbkdf2_sha256_no_panic`, `fuzz_argon2id_no_panic`, `fuzz_scrypt_no_panic`, `fuzz_balloon_sha256_no_panic`, `fuzz_bcrypt_no_panic`; sweeps boundary-value parameter combinations and asserts no panics; coverage-guided fuzzing with `cargo-fuzz` is a separate follow-up requiring nightly)
+- [x] Fuzz test: no KDF panics on arbitrary parameter combinations (done 2026-06-03 — `tests/prop_kdf.rs` has structured fuzz tests `fuzz_hkdf_{sha256,sha384,sha512}_no_panic`, `fuzz_pbkdf2_sha256_no_panic`, `fuzz_argon2id_no_panic`, `fuzz_scrypt_no_panic`, `fuzz_balloon_sha256_no_panic`, `fuzz_bcrypt_no_panic`; sweeps boundary-value parameter combinations and asserts no panics)
+- [x] Coverage-guided `cargo-fuzz` harness (the follow-up noted above) — added 2026-08: `fuzz/fuzz_targets/fuzz_bcrypt_verify_no_panic.rs` fuzzes `bcrypt_verify`'s hash-string parser directly (the untrusted-string entry point; regression coverage for the char-boundary panic fixed in `bcrypt_kdf.rs`'s `ensure_ascii_hash`). Run with `cargo +nightly fuzz run fuzz_bcrypt_verify_no_panic` from `crates/oxicrypto-kdf/fuzz/`; smoke-tested 1M+ iterations with zero crashes.
 
 ## Performance
 - [x] Benchmark Argon2id vs scrypt vs PBKDF2 at equivalent security levels (done 2026-06-03 — `benches/kdf_bench.rs::bench_password_kdfs_equivalent_security`)

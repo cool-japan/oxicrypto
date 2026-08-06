@@ -1,0 +1,24 @@
+[package]
+name = "oxicrypto-mac-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+oxicrypto-mac = { path = ".." }
+oxicrypto-core = { path = "../../oxicrypto-core" }
+
+[[bin]]
+name = "fuzz_hmac_truncated_no_panic"
+path = "fuzz_targets/fuzz_hmac_truncated_no_panic.rs"
+test = false
+doc = false
+
+# Standalone workspace: see crates/oxicrypto-hash/fuzz/Cargo.toml for why this
+# is required (keeps the nightly-only libfuzzer-sys dependency out of the
+# parent oxicrypto workspace).
+[workspace]

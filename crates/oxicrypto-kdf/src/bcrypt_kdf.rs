@@ -839,7 +839,9 @@ pub fn bcrypt_hash(password: &[u8], cost: u32, salt: &[u8; 16]) -> Result<String
 /// Uses constant-time comparison to prevent timing attacks.
 ///
 /// # Errors
-/// Returns [`CryptoError::Encoding`] if the hash string is malformed.
+/// Returns [`CryptoError::Encoding`] if the hash string is malformed, including
+/// when it contains any non-ASCII byte (the bcrypt modular-crypt format and its
+/// base64 alphabet are ASCII-only by definition).
 ///
 /// # Example
 /// ```ignore
@@ -849,6 +851,11 @@ pub fn bcrypt_hash(password: &[u8], cost: u32, salt: &[u8; 16]) -> Result<String
 /// ```
 #[must_use = "bcrypt_verify result must be checked"]
 pub fn bcrypt_verify(password: &[u8], hash_str: &str) -> Result<bool, CryptoError> {
+    // Reject non-ASCII up front: every subsequent index into `hash_str` is a
+    // byte offset, and on a multi-byte UTF-8 sequence `str` slicing would panic
+    // ("byte index N is not a char boundary") on attacker-supplied input.
+    ensure_ascii_hash(hash_str)?;
+
     // Parse the $2b$ or $2a$ format string.
     let (cost, salt) = parse_bcrypt_string(hash_str)?;
 
@@ -871,8 +878,32 @@ pub fn bcrypt_verify(password: &[u8], hash_str: &str) -> Result<bool, CryptoErro
     Ok(ok)
 }
 
+/// Reject a hash string that is not pure ASCII.
+///
+/// The bcrypt modular-crypt format (`$2b$cc$` + 22-char salt + 31-char hash)
+/// and its base64 alphabet are ASCII-only, so a non-ASCII byte is definitionally
+/// malformed input. Enforcing this makes every subsequent byte-offset check
+/// (`len() == 53`, `len() < 3`, …) and every `&str[a..b]` slice in this module
+/// exactly correct: in an all-ASCII string every byte index is a char boundary,
+/// so no slice can panic.
+///
+/// # Errors
+/// Returns [`CryptoError::Encoding`] if `hash_str` contains a non-ASCII byte.
+fn ensure_ascii_hash(hash_str: &str) -> Result<(), CryptoError> {
+    if hash_str.is_ascii() {
+        Ok(())
+    } else {
+        Err(CryptoError::Encoding)
+    }
+}
+
 /// Parse a bcrypt hash string and return `(cost, salt)`.
 fn parse_bcrypt_string(hash_str: &str) -> Result<(u32, [u8; 16]), CryptoError> {
+    // Independently enforced here (not only in `bcrypt_verify`) so this helper
+    // is sound for any caller: the `&rest[..2]` / `&rest[3..]` / `&hash_part[..22]`
+    // slices below are byte offsets that would panic mid-UTF-8-sequence.
+    ensure_ascii_hash(hash_str)?;
+
     // Validate prefix: must be $2b$ or $2a$.
     if !hash_str.starts_with("$2b$") && !hash_str.starts_with("$2a$") {
         return Err(CryptoError::Encoding);
@@ -911,6 +942,12 @@ fn parse_bcrypt_string(hash_str: &str) -> Result<(u32, [u8; 16]), CryptoError> {
 
 /// Extract the 53-char body (salt + hash) from a bcrypt hash string.
 fn extract_hash_part(hash_str: &str) -> Result<&str, CryptoError> {
+    // As in `parse_bcrypt_string`: the `&rest[3..]` slice below is a byte offset
+    // and is only guaranteed to land on a char boundary for ASCII input. This
+    // helper does *not* verify that byte 2 is the ASCII `'$'`, so the ASCII gate
+    // is what keeps it panic-free independently of call order.
+    ensure_ascii_hash(hash_str)?;
+
     if !hash_str.starts_with("$2b$") && !hash_str.starts_with("$2a$") {
         return Err(CryptoError::Encoding);
     }
@@ -1388,6 +1425,88 @@ mod tests {
         // Space is not in the bcrypt alphabet.
         let result = bcrypt_base64_decode("!! ");
         assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // Regression: non-ASCII hash strings must not panic on a char boundary
+    //
+    // Before the ASCII gate, `parse_bcrypt_string` sliced `&hash_part[..22]`
+    // (and `bcrypt_verify` sliced `&hash_part[22..]`, `extract_hash_part`
+    // sliced `&rest[3..]`) after only a *byte*-length check. A multi-byte
+    // UTF-8 sequence straddling one of those byte offsets aborted the process
+    // with "byte index N is not a char boundary" on untrusted input.
+    // -----------------------------------------------------------------------
+
+    /// The exact repro from the audit: "$2b$04$" + 21 ASCII + 'é' + 30 ASCII.
+    /// `hash_part.len() == 53` passes the old byte-length guard, and the 2-byte
+    /// 'é' occupies bytes 21..23, so byte index 22 is a continuation byte.
+    #[test]
+    fn bcrypt_verify_non_ascii_char_boundary_rejected() {
+        let mut malicious = String::from("$2b$04$");
+        malicious.push_str(&"a".repeat(21));
+        malicious.push('é');
+        malicious.push_str(&"a".repeat(30));
+
+        // Byte length of the body is exactly 53 → old guard let it through.
+        assert_eq!(malicious.len() - 7, 53, "repro must hit the 53-byte guard");
+
+        assert_eq!(
+            bcrypt_verify(b"pw", &malicious),
+            Err(CryptoError::Encoding),
+            "non-ASCII bcrypt hash must be a typed error, never a panic"
+        );
+    }
+
+    /// Sweep a 2-byte character across every byte offset of an otherwise valid
+    /// hash string. Every position must yield `Err(Encoding)` and none may
+    /// panic — this covers all three byte-offset slice sites at once, plus any
+    /// future one.
+    #[test]
+    fn bcrypt_verify_non_ascii_at_every_offset_rejected() {
+        let valid = bcrypt_hash(b"password", 4, &[0u8; 16]).expect("bcrypt_hash must succeed");
+        assert_eq!(valid.len(), 60);
+
+        for offset in 0..=valid.len() {
+            // Replace the byte at `offset` (or append at the end) with 'é',
+            // keeping the total byte length in the same neighbourhood.
+            let mut corrupted = String::with_capacity(valid.len() + 2);
+            corrupted.push_str(&valid[..offset]);
+            corrupted.push('é');
+            if offset < valid.len() {
+                corrupted.push_str(&valid[offset + 1..]);
+            }
+
+            assert_eq!(
+                bcrypt_verify(b"password", &corrupted),
+                Err(CryptoError::Encoding),
+                "non-ASCII at byte offset {offset} must be rejected, not panic"
+            );
+
+            // The private helpers must be independently sound too, regardless
+            // of call order (`extract_hash_part` does not re-check byte 2).
+            assert_eq!(parse_bcrypt_string(&corrupted), Err(CryptoError::Encoding));
+            assert_eq!(extract_hash_part(&corrupted), Err(CryptoError::Encoding));
+        }
+    }
+
+    /// A 4-byte character (emoji) straddling the salt/hash split is rejected too.
+    #[test]
+    fn bcrypt_verify_multibyte_emoji_rejected() {
+        let mut malicious = String::from("$2b$04$");
+        malicious.push_str(&"a".repeat(19));
+        malicious.push('🦀'); // 4 bytes → occupies body bytes 19..23
+        malicious.push_str(&"a".repeat(30));
+
+        assert_eq!(malicious.len() - 7, 53);
+        assert_eq!(bcrypt_verify(b"pw", &malicious), Err(CryptoError::Encoding));
+    }
+
+    /// A valid, purely-ASCII hash still verifies after the gate was added.
+    #[test]
+    fn bcrypt_verify_ascii_still_round_trips() {
+        let hash = bcrypt_hash(b"password", 4, &[0u8; 16]).expect("bcrypt_hash must succeed");
+        assert_eq!(bcrypt_verify(b"password", &hash), Ok(true));
+        assert_eq!(bcrypt_verify(b"wrong", &hash), Ok(false));
     }
 
     // -----------------------------------------------------------------------

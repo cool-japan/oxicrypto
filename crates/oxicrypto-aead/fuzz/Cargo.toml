@@ -1,0 +1,30 @@
+[package]
+name = "oxicrypto-aead-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+oxicrypto-aead = { path = ".." }
+oxicrypto-core = { path = "../../oxicrypto-core" }
+
+[[bin]]
+name = "fuzz_sealed_box_open_no_panic"
+path = "fuzz_targets/fuzz_sealed_box_open_no_panic.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_key_unwrap_no_panic"
+path = "fuzz_targets/fuzz_key_unwrap_no_panic.rs"
+test = false
+doc = false
+
+# Standalone workspace: see crates/oxicrypto-hash/fuzz/Cargo.toml for why this
+# is required (keeps the nightly-only libfuzzer-sys dependency out of the
+# parent oxicrypto workspace).
+[workspace]

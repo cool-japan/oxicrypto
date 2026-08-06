@@ -12,7 +12,7 @@
 ```toml
 [dependencies]
 # Types are only compiled in when the `pkcs11` feature is on.
-oxicrypto-adapter-pkcs11 = { version = "0.2.1", features = ["pkcs11"] }
+oxicrypto-adapter-pkcs11 = { version = "0.3.0", features = ["pkcs11"] }
 ```
 
 From **oxicrypto 0.2.0**, the `pkcs11` feature is no longer available on the `oxicrypto` facade. Depend on this adapter crate directly instead of going via the facade.

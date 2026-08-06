@@ -1,0 +1,24 @@
+[package]
+name = "oxicrypto-kdf-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+oxicrypto-kdf = { path = ".." }
+oxicrypto-core = { path = "../../oxicrypto-core" }
+
+[[bin]]
+name = "fuzz_bcrypt_verify_no_panic"
+path = "fuzz_targets/fuzz_bcrypt_verify_no_panic.rs"
+test = false
+doc = false
+
+# Standalone workspace: see crates/oxicrypto-hash/fuzz/Cargo.toml for why this
+# is required (keeps the nightly-only libfuzzer-sys dependency out of the
+# parent oxicrypto workspace).
+[workspace]

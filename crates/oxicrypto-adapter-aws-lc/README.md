@@ -12,7 +12,7 @@
 ```toml
 [dependencies]
 # Types are only compiled in when the `aws-lc` feature is on.
-oxicrypto-adapter-aws-lc = { version = "0.2.1", features = ["aws-lc"] }
+oxicrypto-adapter-aws-lc = { version = "0.3.0", features = ["aws-lc"] }
 ```
 
 From **oxicrypto 0.2.0**, the `aws-lc` feature is no longer available on the `oxicrypto` facade. Depend on this adapter crate directly instead of going via the facade.
@@ -86,6 +86,7 @@ trait). `nonce_len()` is 12 and `tag_len()` is 16 for every variant.
 
 | Type | Implements | Output |
 |------|-----------|--------|
+| `AwsLcSha1` | `oxicrypto_core::Hash` | SHA-1, 20 bytes (legacy; cryptographically broken — for interop only) |
 | `AwsLcSha256` | `oxicrypto_core::Hash` | SHA-256, 32 bytes |
 | `AwsLcSha384` | `oxicrypto_core::Hash` | SHA-384, 48 bytes |
 | `AwsLcSha512` | `oxicrypto_core::Hash` | SHA-512, 64 bytes |

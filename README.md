@@ -1,6 +1,6 @@
 # OxiCrypto
 
-**Version 0.2.1 — Released 2026-07-17**
+**Version 0.3.0 — Released 2026-08-06**
 
 OxiCrypto is the COOLJAPAN-blessed Pure Rust cryptographic primitives layer:
 hashes, MACs, AEADs, signatures, key exchange, KDFs, password hashing, PRNGs,
@@ -12,7 +12,7 @@ The non-negotiable goal: a fresh `rust:slim` container running
 `cargo build --no-default-features` succeeds with zero `apt-get install` and no
 C toolchain.
 
-## Status: v0.2.1 — All milestones M0–M5 complete
+## Status: v0.3.0 — All milestones M0–M5 complete
 
 | Milestone | Description | Status |
 |-----------|-------------|--------|
@@ -24,41 +24,44 @@ C toolchain.
 | M5 | Bounded FFI: aws-lc adapter (FIPS), PKCS#11 HSM adapter | Done |
 | Post-M5 | BLAKE2, XOFs, KMAC, HPKE, SLH-DSA, hybrid KEMs, BIP-340, FROST | Done |
 
-**Test coverage:** 1736 tests pass with `cargo nextest run --all-features --workspace` (1612 with default features), plus 28 passing doctests (9 `#[ignore]`d). 32 tests are `#[ignore]`-gated as slow or environment-dependent: 18 SLH-DSA `-s`-parameter variants + 2 ML-KEM-1024 property tests (`oxicrypto-pq`), 7 SoftHSM-hardware-dependent integration tests (`oxicrypto-adapter-pkcs11`), 4 RSA-2048-keygen-latency tests (`oxicrypto-sig`), and 1 large-vector (~1 GiB) scrypt KAT (`oxicrypto-kdf`). Includes RFC 8032 §7.4 KATs for Ed448ph and Ed448ctx.
-**SLOC:** ~48,023 lines of Rust across 14 crates (220 files).
+**Test coverage:** 1627 tests pass with `cargo nextest run --workspace` (default features), plus 26 passing doctests (9 `#[ignore]`d). 25 tests are `#[ignore]`-gated as slow: 18 SLH-DSA `-s`-parameter variants + 2 ML-KEM-1024 property tests (`oxicrypto-pq`), 4 RSA-2048-keygen-latency tests (`oxicrypto-sig`), and 1 large-vector (~1 GiB) scrypt KAT (`oxicrypto-kdf`). Includes RFC 8032 §7.4 KATs for Ed448ph and Ed448ctx.
+
+**Validation matrix:** the workspace is validated with **default features only**. `--all-features` additionally switches on the two bounded-FFI adapter crates (`oxicrypto-adapter-aws-lc`, `oxicrypto-adapter-pkcs11`), which need a C toolchain plus system libraries and are therefore outside the Pure-Rust validation matrix; their FFI-backed tests are gated off in every number quoted here. Exercising either adapter requires a machine with that C build environment and is not part of this project's validation matrix.
+
+**SLOC:** ~48,717 lines of Rust across 14 crates (227 files; excludes the 5 nightly-only `fuzz/` crates).
 
 ## Workspace Crates
 
 Status: `Stable` = feature-complete and well-tested with no functional changes
 across several releases; `Alpha` = functional, well-tested, but pre-1.0 and
-still gaining API surface. Test counts are from `cargo nextest run -p <crate>
---all-features` (2026-07-17).
+still gaining API surface. Test counts are from `cargo nextest run -p <crate>`
+with **default features** (2026-08-06) — see the Validation matrix note above.
 
 | Crate | Status | Tests | Description |
 |-------|--------|-------|-------------|
-| [`oxicrypto-core`](crates/oxicrypto-core) | Alpha | 66 passing | Trait surface: `Hasher`, `Mac`, `Aead`, `Signer`, `Verifier`, `Kex`, `Kem`, `Kdf`, `PasswordHasher`, `CryptoRng` |
-| [`oxicrypto-hash`](crates/oxicrypto-hash) | Alpha | 252 passing | SHA-2, SHA-3, BLAKE2b/s, BLAKE3, SHAKE/cSHAKE/KMAC XOFs, ParallelHash, TupleHash |
-| [`oxicrypto-aead`](crates/oxicrypto-aead) | Alpha | 183 passing | AES-GCM, ChaCha20-Poly1305, AES-GCM-SIV, XChaCha20-Poly1305, AES-CCM, OCB3, Deoxys-II, HPKE (RFC 9180) |
+| [`oxicrypto-core`](crates/oxicrypto-core) | Alpha | 58 passing | Trait surface: `Hasher`, `Mac`, `Aead`, `Signer`, `Verifier`, `Kex`, `Kem`, `Kdf`, `PasswordHasher`, `CryptoRng` |
+| [`oxicrypto-hash`](crates/oxicrypto-hash) | Alpha | 242 passing | SHA-2, SHA-3, BLAKE2b/s, BLAKE3, SHAKE/cSHAKE/KMAC XOFs, ParallelHash, TupleHash |
+| [`oxicrypto-aead`](crates/oxicrypto-aead) | Alpha | 186 passing | AES-GCM, ChaCha20-Poly1305, AES-GCM-SIV, XChaCha20-Poly1305, AES-CCM, OCB3, Deoxys-II, HPKE (RFC 9180), TLS 1.3 suite negotiation |
 | [`oxicrypto-cipher`](crates/oxicrypto-cipher) | Stable | 6 passing | AES single-block ECB, ChaCha20 keystream (QUIC header protection) |
 | [`oxicrypto-mac`](crates/oxicrypto-mac) | Alpha | 184 passing | HMAC-SHA-{256,384,512}, HMAC-SHA3-{256,512}, CMAC-AES, Poly1305, KMAC128/256 |
 | [`oxicrypto-sig`](crates/oxicrypto-sig) | Alpha | 226 passing, 4 skipped | Ed25519, Ed448, ECDSA (P-256/384/521), BIP-340 Schnorr, RSA PKCS#1v15/PSS, FROST (RFC 9591) |
 | [`oxicrypto-kex`](crates/oxicrypto-kex) | Alpha | 124 passing | X25519, X448, ECDH (P-256/384/521) |
-| [`oxicrypto-kdf`](crates/oxicrypto-kdf) | Alpha | 229 passing, 1 skipped | HKDF, PBKDF2, Argon2id, scrypt, Balloon, KBKDF |
+| [`oxicrypto-kdf`](crates/oxicrypto-kdf) | Alpha | 233 passing, 1 skipped | HKDF, PBKDF2, Argon2id, scrypt, Balloon, KBKDF, bcrypt |
 | [`oxicrypto-rand`](crates/oxicrypto-rand) | Stable | 79 passing | ChaCha20 CSPRNG, fork-safe reseeding RNG, thread-local RNG |
-| [`oxicrypto-pq`](crates/oxicrypto-pq) | Alpha (preview) | 176 passing, 20 skipped | ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), hybrid X-Wing/ML-KEM+P-384 |
-| [`oxicrypto`](crates/oxicrypto) | Alpha | 116 passing | Unified façade re-exporting all sub-crates |
+| [`oxicrypto-pq`](crates/oxicrypto-pq) | Alpha (preview) | 166 passing, 20 skipped | ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205, all 12 parameter sets), hybrid X-Wing/ML-KEM+P-384 |
+| [`oxicrypto`](crates/oxicrypto) | Alpha | 100 passing | Unified façade re-exporting all sub-crates |
 | [`oxicrypto-bench`](crates/oxicrypto-bench) | Alpha (dev-only) | 22 passing | Criterion benchmarks vs. `ring` and `aws-lc-rs` (dev-only, `publish = false`) |
-| [`oxicrypto-adapter-aws-lc`](crates/oxicrypto-adapter-aws-lc) | Alpha (opt-in, C-FFI) | 45 passing | Bounded FFI: FIPS-leaning primitives via `aws-lc-rs` (feature-gated, off by default) |
-| [`oxicrypto-adapter-pkcs11`](crates/oxicrypto-adapter-pkcs11) | Alpha (opt-in, C-FFI) | 28 passing, 7 skipped | Bounded FFI: HSM sign/decrypt via `cryptoki` (feature-gated, off by default) |
+| [`oxicrypto-adapter-aws-lc`](crates/oxicrypto-adapter-aws-lc) | Alpha (opt-in, C-FFI) | 1 passing (FFI tests gated off) | Bounded FFI: FIPS-leaning primitives via `aws-lc-rs` (feature-gated, off by default) |
+| [`oxicrypto-adapter-pkcs11`](crates/oxicrypto-adapter-pkcs11) | Alpha (opt-in, C-FFI) | 0 (FFI tests gated off) | Bounded FFI: HSM sign/decrypt via `cryptoki` (feature-gated, off by default) |
 
 ## Quick Start
 
 ```toml
 [dependencies]
-oxicrypto = "0.2.1"
+oxicrypto = "0.3.0"
 
 # Post-quantum primitives (off by default):
-oxicrypto = { version = "0.2.1", features = ["pq-preview"] }
+oxicrypto = { version = "0.3.0", features = ["pq-preview"] }
 ```
 
 ### Hash
@@ -165,10 +168,10 @@ From **0.2.0**, the `aws-lc` and `pkcs11` features are no longer part of the `ox
 
 ```toml
 # FIPS / aws-lc-rs backend (C/FFI, not Pure Rust)
-oxicrypto-adapter-aws-lc = { version = "0.2.1", features = ["aws-lc"] }
+oxicrypto-adapter-aws-lc = { version = "0.3.0", features = ["aws-lc"] }
 
 # PKCS#11 HSM backend (C/FFI, not Pure Rust)
-oxicrypto-adapter-pkcs11 = { version = "0.2.1", features = ["pkcs11"] }
+oxicrypto-adapter-pkcs11 = { version = "0.3.0", features = ["pkcs11"] }
 ```
 
 ## Replaces (FFI being eliminated)
