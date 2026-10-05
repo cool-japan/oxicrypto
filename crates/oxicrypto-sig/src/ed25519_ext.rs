@@ -68,8 +68,11 @@ fn dom2(phflag: u8, ctx: &[u8]) -> Vec<u8> {
 fn expand_seed(seed: &[u8; 32]) -> (Scalar, [u8; 32]) {
     let h: [u8; 64] = Sha512::digest(seed).into();
     // clamp_integer clears/sets the co-factor and high bits per RFC 8032 §5.1.5.
-    let scalar_bytes: [u8; 32] =
-        clamp_integer(h[..32].try_into().expect("infallible 32-byte slice"));
+    // `copy_from_slice` from the first 32 bytes of the 64-byte `h` cannot fail
+    // (both lengths are 32) and needs no `expect`.
+    let mut scalar_src = [0u8; 32];
+    scalar_src.copy_from_slice(&h[..32]);
+    let scalar_bytes: [u8; 32] = clamp_integer(scalar_src);
     let scalar = Scalar::from_bytes_mod_order(scalar_bytes);
     let mut prefix = [0u8; 32];
     prefix.copy_from_slice(&h[32..]);

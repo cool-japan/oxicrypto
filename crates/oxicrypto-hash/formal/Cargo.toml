@@ -1,0 +1,58 @@
+# Standalone package: deliberately its own `[workspace]` so it is NOT a member
+# of the `oxicrypto` root workspace. It depends on the real `oxicrypto-hash`
+# (and `oxicrypto-core` for the `Hash` trait) by relative path and on
+# `oxiformal` by relative path, and it is built and verified on its own
+# (`cargo build`, `cargo test`, `cargo formal check`).
+#
+# Nothing outside this directory belongs to this package: its `target/` and its
+# `Cargo.lock` are ignored by `formal/.gitignore`, and the root workspace never
+# sees it (a nested package that declares its own `[workspace]` is invisible to
+# the parent, and the root manifest lists explicit `members`, none of them this).
+[workspace]
+
+[package]
+name = "oxicrypto-hash-formal"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "cargo-formal harnesses over oxicrypto-hash's pure digest-length and builder metadata API, with measured L1 verdicts"
+
+[dependencies]
+# The real crates, by relative path. `oxicrypto-hash` holds the bodies the
+# harnesses drive (`HashAlgorithm::output_len`, the builder constructors, the
+# `Hash::output_len` impls); `oxicrypto-core` provides the `Hash` trait.
+oxicrypto-hash = { path = "..", default-features = false, features = ["alloc"] }
+oxicrypto-core = { path = "../../oxicrypto-core", default-features = false }
+# Becomes a crates.io version once `oxiformal` is published; a relative path to
+# the cargo-formal checkout beside this one until then. The path is relative to
+# this package's directory: four levels up (formal -> oxicrypto-hash -> crates
+# -> oxicrypto -> the directory that holds both oxicrypto and cargo-formal).
+oxiformal = { path = "../../../../cargo-formal/crates/oxiformal" }
+
+[package.metadata.formal]
+schema = 1
+default-layers = ["hygiene", "bmc", "contract"]
+# The metadata methods under test are loop-free; 4 covers the short
+# `any_vec`-drawn inputs of the one determinism harness.
+unwind = 4
+budget = { max-conflicts = 200000, timeout-ms = 30000, seed = 1 }
+# Explicit, not the cargo-formal default (which would be "every path
+# dependency"): these are exactly the crates whose bodies the harnesses need
+# lowered. The actual digest routines live in the `sha2` / `sha3` / `blake3`
+# registry crates, which are not path dependencies and are not lowered — the
+# determinism and known-answer harnesses say so in their doc comments.
+dep-crates = ["oxicrypto-hash", "oxicrypto-core"]
+
+[[package.metadata.formal.target]]
+path = "src/lib.rs"
+layers = ["hygiene", "bmc", "contract"]
+
+[lints.rust]
+unsafe_code = "forbid"
+# `formal` is set by the `cargo-formal` driver build; `oxiformal_runtime_checks`
+# is set via RUSTFLAGS for the randomized-execution build. Declared here so
+# `unexpected_cfgs` stays quiet in all three builds.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(formal)', 'cfg(oxiformal_runtime_checks)'] }
+
+[lints.clippy]
+unwrap_used = "deny"

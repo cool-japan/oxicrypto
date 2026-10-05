@@ -386,11 +386,11 @@ pub fn new_rng() -> Result<oxicrypto_core::Box<dyn Rng>, CryptoError> {
 #[must_use]
 #[inline]
 pub fn sha256(msg: &[u8]) -> [u8; 32] {
-    let h = hash_impl(HashAlgo::Sha256);
-    let mut out = [0u8; 32];
-    h.hash(msg, &mut out)
-        .expect("SHA-256 cannot fail: buffer is always correct size");
-    out
+    // The infallible fixed-size API: `Sha256::hash_fixed` returns `[u8; 32]`
+    // directly, so there is no `Result` to unwrap. (The `Hash::hash` path this
+    // used to call returns `Err` only for an undersized buffer, which a 32-byte
+    // array never is.)
+    oxicrypto_hash::Sha256.hash_fixed(msg)
 }
 
 /// Compute SHA-512 of `msg`, returning a 64-byte array.
@@ -398,11 +398,8 @@ pub fn sha256(msg: &[u8]) -> [u8; 32] {
 #[must_use]
 #[inline]
 pub fn sha512(msg: &[u8]) -> [u8; 64] {
-    let h = hash_impl(HashAlgo::Sha512);
-    let mut out = [0u8; 64];
-    h.hash(msg, &mut out)
-        .expect("SHA-512 cannot fail: buffer is always correct size");
-    out
+    // The infallible fixed-size API returns `[u8; 64]` directly; see `sha256`.
+    oxicrypto_hash::Sha512.hash_fixed(msg)
 }
 
 /// Compute BLAKE3 of `msg`, returning a 32-byte array.
@@ -410,11 +407,8 @@ pub fn sha512(msg: &[u8]) -> [u8; 64] {
 #[must_use]
 #[inline]
 pub fn blake3(msg: &[u8]) -> [u8; 32] {
-    let h = hash_impl(HashAlgo::Blake3);
-    let mut out = [0u8; 32];
-    h.hash(msg, &mut out)
-        .expect("BLAKE3 cannot fail: buffer is always correct size");
-    out
+    // The infallible fixed-size API returns `[u8; 32]` directly; see `sha256`.
+    oxicrypto_hash::Blake3.hash_fixed(msg)
 }
 
 // ── Prelude module ────────────────────────────────────────────────────────────

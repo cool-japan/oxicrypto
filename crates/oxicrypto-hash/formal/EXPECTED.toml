@@ -1,0 +1,128 @@
+# Machine-readable mirror of the "Measured L1 verdict" doc comment on every
+# `#[harness]` entry point in this package, in the format
+# `cargo-formal`'s own `examples/checked-arith/EXPECTED.toml` uses.
+#
+# **MEASURED, not predicted** (2026-10-05; a release `cargo-formal` CLI and
+# `formal-driver` built from the cargo-formal tree at commit cab6f97 plus that
+# day's hygiene-scanner and conformance-suite changes, neither of which touches
+# the encoder, the solver or the driver; OxiZ 0.3.3, rustc
+# nightly-2026-06-20, `--jobs 2`, a fresh `--target-dir`). The harnesses call
+# the public API of
+# `oxicrypto-hash` (and the `Hash` trait from `oxicrypto-core`) by path;
+# `[package.metadata.formal] dep-crates` names those two, and the run lowered 79
+# dependency bodies (38 reachable). No verdict below was written before the run
+# that produced it.
+#
+# Naming. A property key is the word the encoder actually mints: a user-written
+# `oxiformal::assert(..)` is `assert`; the pseudo-key `harness` is a
+# whole-harness verdict (`"unsupported"` for a harness the encoder refused
+# whole). The incidental `remainder-by-zero` checks from the `sel % 8` selectors
+# are all `proved` and, per this file's rule, not enumerated.
+#
+# Measured tally: 10 property rows over 10 harnesses -- 7 proved / 1 unknown /
+# 2 unsupported. The run's own layer counters are bmc 44 proved / 0 refuted /
+# 1 unknown / 2 unsupported over 47 obligations (45 backed by a `vc/NNNN.smt2`
+# reproduction; the 2 `unsupported` harnesses generate none), contract 0 proved
+# / 0 refuted, hygiene PASS over 2 files, exit status 0 (nothing refuted).
+#
+# Evidence grade (2026-10-05, the same binaries). Every `proved` row is
+# "reproduction only (claim unmet)" under cargo-formal's default
+# `claim-requires` (lrat, oxilean-verify, external-replay): the pinned
+# solver's `unsat`, reproduced under a fixed seed and conflict budget, not an
+# independently checked proof (`claim unmet 44 of 44 proved`). The same day's
+# `cargo formal check --evidence lrat` (a fresh --target-dir, --no-cache; two
+# runs, identical) raised 0 soundness incidents and exited 0, and 0 of the 44
+# proved obligations carry an LRAT certificate: in every one the bit-level
+# encoder folded an assertion to the constant `false`, which leaves no clause
+# set to certify. Each proved row is also checked by ordinary execution:
+# harnesses 2, 4, 5, 6 and 8 (README.md's numbering, the order below) draw no
+# input, so the randomized-execution build runs exactly the one execution each
+# has, and harnesses 3 and 7 depend on their `u8` selector only through
+# `algorithm_of` (`sel % 8`), whose eight algorithms `plain_tests` check
+# the same property for. OxiZ 0.3.3 has a documented wrong-`unsat` class
+# (upstream U-Z19; cargo-formal's conformance fixture
+# u21_pinned_selector_two_define_funs), which is why a reproduction alone is
+# not a proof.
+#
+# The one `unknown` is `solver-model-rejected` (count 1): the mandatory
+# bit-level model check refused a model the pinned OxiZ 0.3.3 returned that did
+# not satisfy the condition (upstream U-Z10), so the honest answer is `unknown`
+# rather than an invented counterexample. It is the `assert` of
+# `output_len_is_a_valid_digest_length_harness` (`src/harness.rs:65`), which
+# ranges `output_len` over an arbitrary selector; the exact-table
+# `output_len_matches_each_algorithm_harness` proves the same values `proved`.
+#
+# The two `unsupported(unsupported-type)` rows are the digest harnesses. The
+# encoder refuses at the `Sha256::hash_fixed` call (`src/harness.rs:194:24` and
+# `:204:26`) with "`!null` is not a range pattern this encoder understands" — a
+# niche (a `NonNull` / reference niche) in the types on the digest path, which
+# runs into the `sha2` registry crate the run does not lower. They are
+# statements about the encoder's reach, not about `oxicrypto-hash`, and
+# `plain_tests` exhausts both over concrete inputs.
+
+[[harness]]
+name = "output_len_is_a_valid_digest_length_harness"
+
+[harness.expected]
+# `solver-model-rejected` under the OxiZ 0.3.3 pin (U-Z10); the same values are
+# `proved` by the exact table below.
+"assert" = "unknown"
+
+[[harness]]
+name = "output_len_matches_each_algorithm_harness"
+
+[harness.expected]
+"assert" = "proved"  # 8 sites, one per algorithm
+
+[[harness]]
+name = "builder_new_round_trips_its_algorithm_harness"
+
+[harness.expected]
+"assert" = "proved"
+
+[[harness]]
+name = "named_builder_constructors_record_their_algorithm_harness"
+
+[harness.expected]
+"assert" = "proved"  # 8 sites, one per constructor
+
+[[harness]]
+name = "trait_output_len_agrees_with_the_table_harness"
+
+[harness.expected]
+"assert" = "proved"  # 8 sites, one per HashAlgorithm-typed hash
+
+[[harness]]
+name = "blake2_trait_output_len_harness"
+
+[harness.expected]
+"assert" = "proved"  # 3 sites: Blake2b256 / Blake2b512 / Blake2s256
+
+[[harness]]
+name = "streaming_builder_round_trips_its_algorithm_harness"
+
+[harness.expected]
+"assert" = "proved"  # 2 sites: StreamingHashBuilder::new and HashBuilder::streaming
+
+[[harness]]
+name = "hash_names_match_their_labels_harness"
+
+[harness.expected]
+"assert" = "proved"  # 11 sites, one per concrete hash type's Hash::name
+
+[[harness]]
+name = "sha256_hash_fixed_is_deterministic_harness"
+
+[harness.expected]
+# unsupported(unsupported-type) at the hash_fixed call (src/harness.rs:194:24):
+# "`!null` is not a range pattern this encoder understands" — the digest runs
+# into the sha2 registry crate the run does not lower. No VC is generated.
+"harness" = "unsupported"
+
+[[harness]]
+name = "sha256_empty_known_answer_harness"
+
+[harness.expected]
+# unsupported(unsupported-type) at the hash_fixed call (src/harness.rs:204:26),
+# the same boundary as above.
+"harness" = "unsupported"
