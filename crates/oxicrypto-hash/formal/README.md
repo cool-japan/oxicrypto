@@ -54,20 +54,21 @@ All three pass with zero warnings, as does
 
 ```sh
 # `oxiformal` is not on crates.io yet, so both the CLI and the driver come from
-# the cargo-formal checkout beside this repository. FORMAL_DRIVER must point at
-# the *release* driver binary.
-FORMAL_DRIVER=../../../../cargo-formal/driver/target/release/formal-driver \
+# the cargo-formal checkout. FORMAL_DRIVER must point at the *release* driver
+# binary.
+FORMAL_DRIVER=../../../../../cargo-formal/driver/target/release/formal-driver \
   cargo formal check
 ```
 
 The manifest names `oxiformal` by the relative path
-`../../../../cargo-formal/crates/oxiformal`, i.e. it assumes the `cargo-formal`
-checkout sits beside the **root** of this repository (the directory that holds
-both `oxicrypto` and `cargo-formal`). Cargo resolves the path from the
-package's real directory, so when this repository is reached through a
-symlink, the relative path resolves beside the real directory, not beside the
-link: put the `cargo-formal` checkout (or a symlink to it) next to the real
-`oxicrypto` directory. Never hard-code an absolute path in the manifest.
+`../../../../../cargo-formal/crates/oxiformal`, i.e. it assumes the
+`cargo-formal` checkout sits beside the directory that holds this repository:
+`<root>/cargo-formal` next to `<root>/<group>/oxicrypto`, the layout this
+repository is developed in. Cargo resolves the path from the package's real
+directory, so reaching the repository through a symlink does not change where
+the path lands. In another layout, put the `cargo-formal` checkout (or a
+symlink to it) where that path resolves. Never hard-code an absolute path in
+the manifest.
 
 `cargo formal check` exits **0** here: nothing is refuted.
 

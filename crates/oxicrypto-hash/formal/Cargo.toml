@@ -24,10 +24,11 @@ description = "cargo-formal harnesses over oxicrypto-hash's pure digest-length a
 oxicrypto-hash = { path = "..", default-features = false, features = ["alloc"] }
 oxicrypto-core = { path = "../../oxicrypto-core", default-features = false }
 # Becomes a crates.io version once `oxiformal` is published; a relative path to
-# the cargo-formal checkout beside this one until then. The path is relative to
-# this package's directory: four levels up (formal -> oxicrypto-hash -> crates
-# -> oxicrypto -> the directory that holds both oxicrypto and cargo-formal).
-oxiformal = { path = "../../../../cargo-formal/crates/oxiformal" }
+# the cargo-formal checkout until then. The path is relative to this package's
+# directory: five levels up (formal -> oxicrypto-hash -> crates -> oxicrypto ->
+# the directory that holds oxicrypto -> the directory that holds that one and
+# cargo-formal).
+oxiformal = { path = "../../../../../cargo-formal/crates/oxiformal" }
 
 [package.metadata.formal]
 schema = 1
